@@ -232,7 +232,8 @@ export type ReportType =
   | 'leave'             // Рапорт на предоставление отпуска
   | 'case_closure'      // Рапорт о завершении расследования
   | 'special_operation' // Рапорт о проведенном ОРМ / рейде
-  | 'award_request';    // Ходатайство о награждении
+  | 'award_request'     // Ходатайство о награждении
+  | 'junior_internship'; // Рапорт о мл. лейтенанте (помощнике следователя / стажере)
 
 export interface ReportRecord {
   id: string;
@@ -252,6 +253,9 @@ export interface ReportRecord {
   arrestsCount: number;
   pointsCalculated: number;
   reviewerComment?: string;
+  juniorOfficerName?: string; // ФИО младшего лейтенанта / помощника следователя
+  juniorOfficerBadge?: string; // Номер жетона стажера
+  internshipRecommendation?: 'promote_lieutenant' | 'continue_training' | 'excellent';
 }
 
 export type DocumentType =

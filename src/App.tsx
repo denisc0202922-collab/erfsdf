@@ -115,6 +115,28 @@ export function App() {
   const handleUpdateOfficer = (updated: OfficerProfile) => {
     setOfficer(updated);
     saveOfficerProfile(updated);
+
+    // Sync with accounts
+    setAccounts((prev) => {
+      const updatedAccounts = prev.map((a) => {
+        if (
+          a.fullName.toLowerCase() === updated.fullName.toLowerCase() ||
+          a.badgeNumber === updated.badgeNumber
+        ) {
+          return {
+            ...a,
+            rank: updated.rank,
+            photoUrl: updated.photoUrl,
+            position: updated.position,
+            departmentName: updated.department
+          };
+        }
+        return a;
+      });
+      saveAccounts(updatedAccounts);
+      return updatedAccounts;
+    });
+
     showToast('Служебные данные следователя обновлены');
   };
 
@@ -558,6 +580,9 @@ export function App() {
               {activeTab === 'junior_exam' && (
                 <JuniorExamView
                   officer={officer}
+                  accounts={accounts}
+                  orders={orders}
+                  userRole={userRole}
                   onPromoteToLieutenant={() => {
                     const updated = {
                       ...officer,
@@ -566,6 +591,9 @@ export function App() {
                     };
                     handleUpdateOfficer(updated);
                   }}
+                  onUpdateOfficer={handleUpdateOfficer}
+                  onUpdateAccounts={handleUpdateAccounts}
+                  onUpdateOrders={handleUpdateOrders}
                   onShowToast={showToast}
                 />
               )}

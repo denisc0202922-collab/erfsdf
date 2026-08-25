@@ -225,7 +225,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Служебный профиль сотрудника"
               >
                 <img
-                  src={officer.photoUrl || officer.avatarUrl}
+                  src={officer.photoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
                   alt={officer.fullName}
                   className="w-8 h-8 rounded-xl object-cover border border-white/40 shadow-sm group-hover:border-amber-300 transition"
                 />

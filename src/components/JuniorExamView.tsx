@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { OfficerProfile } from '../types';
+import { OfficerProfile, UserAccount, ChairmanOrder, RankType, UserRoleType } from '../types';
 import {
   GraduationCap,
   CheckCircle2,
@@ -19,18 +19,43 @@ import {
   ArrowRight,
   Clock,
   FileText,
-  UserCheck
+  UserCheck,
+  User,
+  Phone,
+  FileCheck2,
+  Check,
+  X,
+  Crosshair,
+  BadgeCheck,
+  ShieldCheck,
+  MessageSquare,
+  Briefcase,
+  Users,
+  Building2,
+  ThumbsUp,
+  ThumbsDown,
+  Edit3
 } from 'lucide-react';
 import {
   QUALIFICATION_QUESTIONS,
   getExamSubmissions,
   saveExamSubmissions,
-  ExamSubmission
+  ExamSubmission,
+  InternshipTask,
+  DEFAULT_INTERNSHIP_TASKS
 } from '../data/examQuestions';
+import { OfficialEmblem, OfficialStampSeal } from './OfficialEmblem';
+import { saveOfficerProfile, saveAccounts, saveOrders } from '../utils/storage';
 
 interface JuniorExamViewProps {
   officer: OfficerProfile;
+  accounts?: UserAccount[];
+  orders?: ChairmanOrder[];
+  userRole?: UserRoleType;
   onPromoteToLieutenant?: () => void;
+  onUpdateOfficer?: (officer: OfficerProfile) => void;
+  onUpdateAccounts?: (accounts: UserAccount[]) => void;
+  onUpdateOrders?: (orders: ChairmanOrder[]) => void;
   onShowToast: (msg: string) => void;
 }
 
@@ -262,10 +287,16 @@ const TESTS: TestData[] = [
 
 export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
   officer,
+  accounts = [],
+  orders = [],
+  userRole = 'investigator',
   onPromoteToLieutenant,
+  onUpdateOfficer,
+  onUpdateAccounts,
+  onUpdateOrders,
   onShowToast
 }) => {
-  const [selectedSection, setSelectedSection] = useState<'overview' | 'test1' | 'test2' | 'test3' | 'final_exam'>('overview');
+  const [selectedSection, setSelectedSection] = useState<'overview' | 'test1' | 'test2' | 'test3' | 'final_exam' | 'internship' | 'mentor_cabinet'>('overview');
 
   // Test Answers State
   const [testAnswers, setTestAnswers] = useState<Record<number, Record<number, string>>>(() => {
@@ -300,11 +331,48 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
   // Officer's personal submission record from global submissions list
   const [allSubmissions, setAllSubmissions] = useState<ExamSubmission[]>(() => getExamSubmissions());
 
+  // Task notes editing state in internship view
+  const [activeTaskNotes, setActiveTaskNotes] = useState<{ [id: number]: string }>({});
+
+  // Mentor Review state for mentor cabinet
+  const [selectedSubmissionForReview, setSelectedSubmissionForReview] = useState<ExamSubmission | null>(null);
+  const [mentorReviewText, setMentorReviewText] = useState('');
+
+  // Mentor choice during submission
+  const availableMentors = accounts && accounts.length > 0
+    ? accounts.filter((a) => a.role === 'investigator' || a.role === 'head' || a.role === 'admin' || a.rank !== 'Младший лейтенант юстиции')
+    : [
+        {
+          id: 'acc-voronov',
+          fullName: 'Воронов Андрей Сергеевич',
+          rank: 'Майор юстиции' as RankType,
+          position: 'Старший следователь по особо важным делам',
+          departmentName: 'Отдел по расследованию особо важных дел (ОРОВД)',
+          badgeNumber: 'СК-77-0482',
+          photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+          callsign: 'Следователь-77'
+        },
+        {
+          id: 'acc-chernov',
+          fullName: 'Чернов Денис Максимович',
+          rank: 'Генерал юстиции РФ' as RankType,
+          position: 'Председатель Следственного комитета РФ',
+          departmentName: 'Главное следственное управление (ГСУ)',
+          badgeNumber: 'СК-77-0001',
+          photoUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80',
+          callsign: 'Центр-01'
+        }
+      ];
+
+  const [selectedMentorName, setSelectedMentorName] = useState<string>(availableMentors[0]?.fullName || 'Воронов Андрей Сергеевич');
+
   const currentSubmission = allSubmissions.find(
     (s) => s.officerName.toLowerCase() === officer.fullName.toLowerCase() || s.badgeNumber === officer.badgeNumber
   );
 
   const isExamSubmitted = !!currentSubmission;
+  const isOfficerJunior = officer.rank === 'Младший лейтенант юстиции';
+  const isMentorOrSenior = officer.rank !== 'Младший лейтенант юстиции' || userRole === 'admin' || userRole === 'head';
 
   // Persist locally
   useEffect(() => {
@@ -388,17 +456,20 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
     setExamAnswers((prev) => ({ ...prev, [qId]: value }));
   };
 
+  // Submit theoretical exam & assign to mentor for practical internship
   const handleSubmitFinalExam = (e: React.FormEvent) => {
     e.preventDefault();
     if (!allTestsPassed) {
-      onShowToast('Для сдачи экзамена необходимо сначала успешно сдать все 3 теоретических теста!');
+      onShowToast('Для допуска к стажировке необходимо сначала успешно сдать все 3 теоретических теста!');
       return;
     }
 
     if (writtenQuestionsAnsweredCount < 8) {
-      onShowToast(`Для отправки экзамена на проверку необходимо дать развернутые ответы минимум на 8 из 10 вопросов (сейчас: ${writtenQuestionsAnsweredCount}).`);
+      onShowToast(`Для направления на стажировку необходимо ответить минимум на 8 из 10 билетов (сейчас: ${writtenQuestionsAnsweredCount}).`);
       return;
     }
+
+    const mentor = availableMentors.find((m) => m.fullName === selectedMentorName) || availableMentors[0];
 
     const newSubmission: ExamSubmission = {
       id: `exam-sub-${Date.now()}`,
@@ -415,15 +486,187 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
       test3Passed: test3Score.passed,
       test3Score: `${test3Score.correct}/${test3Score.total}`,
       answers: examAnswers,
-      status: 'pending'
+      status: 'internship',
+      mentorName: mentor.fullName,
+      mentorRank: mentor.rank,
+      mentorPosition: mentor.position,
+      mentorBadge: mentor.badgeNumber,
+      internshipStartedAt: new Date().toLocaleString('ru-RU'),
+      internshipTasks: DEFAULT_INTERNSHIP_TASKS.map((t) => ({ ...t }))
     };
 
     const existing = getExamSubmissions();
-    const updated = [newSubmission, ...existing.filter((s) => s.officerName !== officer.fullName)];
+    const updated = [newSubmission, ...existing.filter((s) => s.officerName.toLowerCase() !== officer.fullName.toLowerCase())];
     saveExamSubmissions(updated);
     setAllSubmissions(updated);
+    setSelectedSection('internship');
 
-    onShowToast('Экзаменационная работа успешно направлена лично Председателю СК России на проверку!');
+    onShowToast(`Теория сдана! Вы успешно направлены на следственную стажировку к наставнику: ${mentor.rank} ${mentor.fullName}!`);
+  };
+
+  // Toggle internship task completion
+  const handleToggleTaskCompleted = (taskId: number) => {
+    if (!currentSubmission || !currentSubmission.internshipTasks) return;
+    const notes = activeTaskNotes[taskId];
+    const updatedTasks = currentSubmission.internshipTasks.map((t) => {
+      if (t.id === taskId) {
+        const nextCompleted = !t.completed;
+        return {
+          ...t,
+          completed: nextCompleted,
+          completedAt: nextCompleted ? new Date().toLocaleString('ru-RU') : undefined,
+          internNotes: notes !== undefined ? notes : t.internNotes
+        };
+      }
+      return t;
+    });
+
+    const updatedSubmission: ExamSubmission = {
+      ...currentSubmission,
+      internshipTasks: updatedTasks
+    };
+
+    const updatedAll = allSubmissions.map((s) => (s.id === currentSubmission.id ? updatedSubmission : s));
+    saveExamSubmissions(updatedAll);
+    setAllSubmissions(updatedAll);
+    onShowToast('Статус практического задания обновлен!');
+  };
+
+  // Save intern task report notes
+  const handleSaveTaskNotes = (taskId: number) => {
+    if (!currentSubmission || !currentSubmission.internshipTasks) return;
+    const notes = activeTaskNotes[taskId] || '';
+    const updatedTasks = currentSubmission.internshipTasks.map((t) => {
+      if (t.id === taskId) {
+        return {
+          ...t,
+          internNotes: notes,
+          completed: true,
+          completedAt: t.completedAt || new Date().toLocaleString('ru-RU')
+        };
+      }
+      return t;
+    });
+
+    const updatedSubmission: ExamSubmission = {
+      ...currentSubmission,
+      internshipTasks: updatedTasks
+    };
+
+    const updatedAll = allSubmissions.map((s) => (s.id === currentSubmission.id ? updatedSubmission : s));
+    saveExamSubmissions(updatedAll);
+    setAllSubmissions(updatedAll);
+    onShowToast(`Отчет по практическому заданию №${taskId} сохранен и передан наставнику!`);
+  };
+
+  // Mentor Decision: Give Approval ("Дать добро")
+  const handleMentorApprove = (submission: ExamSubmission, customComment?: string) => {
+    const feedback =
+      customComment ||
+      mentorReviewText ||
+      'Стажировка пройдена успешно. Практические навыки следственной работы освоены в полном объеме, протоколы составлены грамотно. Даю добро на присвоение звания «Лейтенант юстиции».';
+
+    const updatedSubmissions = allSubmissions.map((s) => {
+      if (s.id === submission.id) {
+        return {
+          ...s,
+          status: 'approved' as const,
+          mentorApproved: true,
+          mentorReview: feedback,
+          reviewedAt: new Date().toLocaleString('ru-RU'),
+          internshipTasks: s.internshipTasks?.map((t) => ({ ...t, mentorGrade: 'зачтено' as const }))
+        };
+      }
+      return s;
+    });
+    saveExamSubmissions(updatedSubmissions);
+    setAllSubmissions(updatedSubmissions);
+
+    // Promote officer if current officer is the one approved
+    if (
+      submission.officerName.toLowerCase() === officer.fullName.toLowerCase() ||
+      submission.badgeNumber === officer.badgeNumber
+    ) {
+      if (onPromoteToLieutenant) {
+        onPromoteToLieutenant();
+      } else if (onUpdateOfficer) {
+        const updatedOfficer: OfficerProfile = {
+          ...officer,
+          rank: 'Лейтенант юстиции',
+          awards: [...officer.awards, 'Квалификационный аттестат СК РФ (с отличием)']
+        };
+        onUpdateOfficer(updatedOfficer);
+        saveOfficerProfile(updatedOfficer);
+      }
+    }
+
+    // Update Accounts
+    if (accounts && onUpdateAccounts) {
+      const updatedAccounts = accounts.map((acc) => {
+        if (
+          acc.fullName.toLowerCase() === submission.officerName.toLowerCase() ||
+          acc.badgeNumber === submission.badgeNumber
+        ) {
+          return {
+            ...acc,
+            rank: 'Лейтенант юстиции' as RankType
+          };
+        }
+        return acc;
+      });
+      onUpdateAccounts(updatedAccounts);
+      saveAccounts(updatedAccounts);
+    }
+
+    // Register official Chairman / Department Order
+    if (orders && onUpdateOrders) {
+      const newOrder: ChairmanOrder = {
+        id: `ord-${Date.now()}`,
+        orderNumber: `П-СК-${String(orders.length + 1).padStart(2, '0')}/24`,
+        date: new Date().toISOString().split('T')[0],
+        type: 'rank_promotion',
+        title: `О присвоении специального звания «Лейтенант юстиции» (${submission.officerName})`,
+        targetOfficerName: submission.officerName,
+        targetDepartment: submission.department,
+        content: `По результатам успешного прохождения следственной стажировки под кураторством наставника (${submission.mentorName || 'старшего следователя'}) и положительного отзыва:\n\n1. Присвоить очередное специальное звание «Лейтенант юстиции» сотруднику ${submission.officerName} (жетон ${submission.badgeNumber}).\n2. Наставнику (${submission.mentorName}) объявить благодарность за качественную подготовку молодого следователя.`,
+        issuedBy: 'Чернов Денис Максимович, Генерал юстиции РФ',
+        seal: true,
+        status: 'active'
+      };
+      onUpdateOrders([newOrder, ...orders]);
+      saveOrders([newOrder, ...orders]);
+    }
+
+    setSelectedSubmissionForReview(null);
+    setMentorReviewText('');
+    onShowToast(`Наставник дал добро! Стажировка офицера ${submission.officerName} успешно зачтена, присвоено звание «Лейтенант юстиции»!`);
+  };
+
+  // Mentor Decision: Reject / Send for Revision ("Отправить на доработку")
+  const handleMentorReject = (submission: ExamSubmission, rejectReason: string) => {
+    if (!rejectReason.trim()) {
+      onShowToast('Укажите замечания и причину направления стажера на доработку!');
+      return;
+    }
+
+    const updatedSubmissions = allSubmissions.map((s) => {
+      if (s.id === submission.id) {
+        return {
+          ...s,
+          status: 'rejected' as const,
+          mentorApproved: false,
+          mentorReview: rejectReason,
+          reviewedAt: new Date().toLocaleString('ru-RU')
+        };
+      }
+      return s;
+    });
+    saveExamSubmissions(updatedSubmissions);
+    setAllSubmissions(updatedSubmissions);
+
+    setSelectedSubmissionForReview(null);
+    setMentorReviewText('');
+    onShowToast(`Материалы стажировки ${submission.officerName} возвращены на доработку с замечаниями наставника.`);
   };
 
   return (
@@ -437,21 +680,21 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
             </span>
             <span className="px-2.5 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center gap-1">
               <GraduationCap className="w-3.5 h-3.5 text-amber-700" />
-              Программа повышения квалификации: «Младший лейтенант → Лейтенант»
+              Программа подготовки: «Младший лейтенант → Стажировка → Лейтенант»
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2.5">
             <GraduationCap className="w-6 h-6 text-[#85181b]" />
-            <span>Квалификационная аттестация на звание «Лейтенант юстиции»</span>
+            <span>Квалификационная аттестация и следственная стажировка</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 font-medium max-w-2xl mt-1 leading-relaxed">
-            Официальная программа аттестации: 3 теоретических теста + 10 билетов квалификационного экзамена. Проверка ответов осуществляется исключительно <b>Председателем СК РФ</b>.
+            Полный цикл подготовки: теоретические тесты + письменный экзамен + практическая стажировка под кураторством следователя-наставника с итоговой аттестацией.
           </p>
         </div>
 
         <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-3 rounded-2xl shrink-0">
           <div className="text-right">
-            <div className="text-[11px] text-slate-500 font-bold">Аттестуемый офицер:</div>
+            <div className="text-[11px] text-slate-500 font-bold">Служебный статус:</div>
             <div className="text-xs font-black text-slate-900">{officer.fullName}</div>
             <div className="text-[10px] text-[#85181b] font-mono font-bold">{officer.rank}</div>
           </div>
@@ -467,19 +710,19 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
       <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto pb-0">
         <button
           onClick={() => setSelectedSection('overview')}
-          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 ${
+          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 shrink-0 ${
             selectedSection === 'overview'
               ? 'border-[#85181b] text-[#85181b] bg-white shadow-sm'
               : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
           }`}
         >
           <BookOpen className="w-4 h-4" />
-          <span>Обзор программы и регламент</span>
+          <span>Обзор программы</span>
         </button>
 
         <button
           onClick={() => setSelectedSection('test1')}
-          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 ${
+          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 shrink-0 ${
             selectedSection === 'test1'
               ? 'border-[#85181b] text-[#85181b] bg-white shadow-sm'
               : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
@@ -496,7 +739,7 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
 
         <button
           onClick={() => setSelectedSection('test2')}
-          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 ${
+          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 shrink-0 ${
             selectedSection === 'test2'
               ? 'border-[#85181b] text-[#85181b] bg-white shadow-sm'
               : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
@@ -513,7 +756,7 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
 
         <button
           onClick={() => setSelectedSection('test3')}
-          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 ${
+          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 shrink-0 ${
             selectedSection === 'test3'
               ? 'border-[#85181b] text-[#85181b] bg-white shadow-sm'
               : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
@@ -530,14 +773,27 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
 
         <button
           onClick={() => setSelectedSection('final_exam')}
-          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 ${
+          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 shrink-0 ${
             selectedSection === 'final_exam'
               ? 'border-[#85181b] text-[#85181b] bg-white shadow-sm'
               : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
           }`}
         >
           <Award className="w-4 h-4" />
-          <span>Квалификационный экзамен (10 вопросов)</span>
+          <span>Экзамен (10 билетов)</span>
+        </button>
+
+        {/* INTERNSHIP TAB */}
+        <button
+          onClick={() => setSelectedSection('internship')}
+          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 shrink-0 ${
+            selectedSection === 'internship'
+              ? 'border-[#85181b] text-[#85181b] bg-white shadow-sm'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+          }`}
+        >
+          <Briefcase className="w-4 h-4" />
+          <span>Следственная стажировка</span>
           {currentSubmission && (
             <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
               currentSubmission.status === 'approved'
@@ -546,7 +802,25 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
                 ? 'bg-red-100 text-red-800'
                 : 'bg-amber-100 text-amber-900'
             }`}>
-              {currentSubmission.status === 'approved' ? 'СДАНО' : currentSubmission.status === 'rejected' ? 'ОТКЛОНЕНО' : 'НА ПРОВЕРКЕ'}
+              {currentSubmission.status === 'approved' ? 'ДОБРО ДАНО' : currentSubmission.status === 'rejected' ? 'ДОРАБОТКА' : 'НА СТАЖИРОВКЕ'}
+            </span>
+          )}
+        </button>
+
+        {/* MENTOR CABINET TAB */}
+        <button
+          onClick={() => setSelectedSection('mentor_cabinet')}
+          className={`py-2.5 px-4 rounded-t-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border-b-2 shrink-0 ${
+            selectedSection === 'mentor_cabinet'
+              ? 'border-[#85181b] text-[#85181b] bg-white shadow-sm'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+          }`}
+        >
+          <Users className="w-4 h-4 text-amber-600" />
+          <span>Кабинет наставника (Кураторство)</span>
+          {allSubmissions.filter((s) => s.status === 'internship').length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+              {allSubmissions.filter((s) => s.status === 'internship').length}
             </span>
           )}
         </button>
@@ -560,10 +834,10 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
             <div className="space-y-1">
               <span className="text-xs font-bold uppercase text-[#85181b] tracking-wider">
-                Порядок аттестации офицеров юстиции
+                Порядок аттестации и стажировки офицеров
               </span>
               <h3 className="text-lg font-black text-slate-900">
-                Инструкция по прохождению квалификационных испытаний
+                Инструкция по прохождению испытаний и наставничества
               </h3>
             </div>
             <div className="p-3 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3">
@@ -582,7 +856,7 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
               </div>
               <h4 className="font-bold text-sm text-slate-900">Три теоретических теста</h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Необходимо сдать все 3 теста с результатом не менее 80% (минимум 4 из 5 верных ответов в каждом). Тесты охватывают процессуальное право, уставную субординацию и криминалистику.
+                Сдача 3 тестов с результатом не менее 80% (минимум 4 из 5 верных ответов). Охватывают процессуальный кодекс, устав и основы криминалистики.
               </p>
             </div>
 
@@ -592,7 +866,7 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
               </div>
               <h4 className="font-bold text-sm text-slate-900">Письменный экзамен (10 билетов)</h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Развернутые ответы на 10 ключевых вопросов: правило Миранды, применение оружия, презумпция невиновности, этапы допроса, обыск без ордера, фиксация улик и практическая задача.
+                Развернутые ответы на 10 ключевых процессуальных вопросов: правило Миранды, применение оружия, презумпция невиновности, обыск и следственная тактика.
               </p>
             </div>
 
@@ -600,24 +874,23 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
               <div className="w-8 h-8 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-[#85181b] font-bold text-xs">
                 3
               </div>
-              <h4 className="font-bold text-sm text-slate-900">Проверка у Председателя СК РФ</h4>
+              <h4 className="font-bold text-sm text-slate-900">Следственная стажировка (5 заданий)</h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Экзаменационная работа поступает в кабинет Председателя Следственного комитета РФ. Только после его личного утверждения издается приказ о присвоении звания «Лейтенант юстиции».
+                Младший лейтенант передается на стажировку к следователю-наставнику. Выполняются 5 практических задач (ОМП, допрос, улики, процессуальный бланк, радиообмен). По итогам наставник пишет отзыв и дает добро на звание.
               </p>
             </div>
           </div>
 
-          {/* Call to action button */}
-          <div className="pt-3 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100">
-            <div className="text-xs text-slate-500 font-medium">
-              Текущий прогресс: <b>{Number(submittedTests[1] && test1Score.passed) + Number(submittedTests[2] && test2Score.passed) + Number(submittedTests[3] && test3Score.passed)} / 3 тестов пройдено</b>
+          <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+            <div className="text-xs text-slate-500">
+              Статус прохождения тестов: <b>{allTestsPassed ? 'Все 3 теста успешно сданы' : 'Требуется завершить тестирование'}</b>
             </div>
 
             <button
               onClick={() => setSelectedSection('test1')}
-              className="px-6 py-2.5 bg-[#85181b] hover:bg-[#6b1316] text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-2"
+              className="px-6 py-2.5 rounded-xl bg-[#85181b] hover:bg-[#6b1316] text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center gap-2"
             >
-              <span>Начать тестирование (Тест №1)</span>
+              <span>Приступить к тестированию</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -625,39 +898,38 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 2. TESTS 1, 2, 3 RENDERER                                                 */}
+      {/* 2. TESTS TABS (1, 2, 3)                                                   */}
       {/* ========================================================================= */}
       {(selectedSection === 'test1' || selectedSection === 'test2' || selectedSection === 'test3') && (() => {
         const testId = selectedSection === 'test1' ? 1 : selectedSection === 'test2' ? 2 : 3;
         const test = TESTS.find((t) => t.id === testId)!;
         const isSubmitted = submittedTests[testId];
-        const answers = testAnswers[testId] || {};
         const score = calculateTestScore(testId);
+        const answers = testAnswers[testId] || {};
 
         return (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-7 shadow-sm space-y-6 animate-in fade-in">
-            {/* Test Top Banner */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
               <div>
-                <span className="px-2.5 py-0.5 rounded-lg bg-red-50 border border-red-200 text-[#85181b] font-mono text-[11px] font-bold">
-                  {test.badge}
-                </span>
-                <h3 className="text-lg font-black text-slate-900 mt-1">
-                  {test.title}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {test.description}
-                </p>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-red-50 border border-red-200 text-[#85181b] font-mono text-[11px] font-bold">
+                    {test.badge}
+                  </span>
+                  {isSubmitted && (
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 ${score.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                      {score.passed ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                      {score.passed ? 'ТЕСТ СДАН' : 'ТЕСТ НЕ СДАН'} ({score.correct}/{score.total})
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-xl font-black text-slate-900">{test.title}</h3>
+                <p className="text-xs text-slate-500 mt-1">{test.description}</p>
               </div>
 
-              {isSubmitted && (
-                <div className={`p-3 rounded-2xl border text-right ${score.passed ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-red-50 border-red-200 text-red-900'}`}>
-                  <div className="text-[11px] font-bold">Результат:</div>
-                  <div className="text-lg font-black font-mono">
-                    {score.correct} / {score.total} {score.passed ? '(СДАНО)' : '(НЕ СДАНО)'}
-                  </div>
-                </div>
-              )}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-right shrink-0">
+                <div className="text-[11px] text-slate-500 font-bold">Проходной балл:</div>
+                <div className="text-sm font-black text-slate-900">4 из 5 (80%)</div>
+              </div>
             </div>
 
             {/* Questions List */}
@@ -674,29 +946,30 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
                         ? isCorrect
                           ? 'bg-emerald-50/40 border-emerald-200'
                           : 'bg-red-50/40 border-red-200'
-                        : 'bg-slate-50 border-slate-200'
+                        : selectedKey
+                        ? 'bg-slate-50/80 border-slate-300'
+                        : 'bg-white border-slate-200'
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      <span className="w-7 h-7 rounded-xl bg-white border border-slate-300 text-slate-800 font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                      <span className="w-7 h-7 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 font-mono font-bold text-xs flex items-center justify-center shrink-0">
                         {idx + 1}
                       </span>
-                      <div className="space-y-3 w-full">
-                        <div className="text-sm font-bold text-slate-900 leading-snug">
+                      <div className="space-y-3 flex-1">
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
                           {q.question}
-                        </div>
+                        </h4>
 
+                        {/* Options */}
                         <div className="grid grid-cols-1 gap-2">
                           {q.options.map((opt) => {
                             const isChosen = selectedKey === opt.key;
-                            const isRight = opt.key === q.correctAnswer;
-
-                            let optClass = 'bg-white border-slate-200 text-slate-700 hover:border-[#85181b]';
+                            let optClass = 'bg-white border-slate-200 hover:border-slate-300 text-slate-700';
 
                             if (isSubmitted) {
-                              if (isRight) {
+                              if (opt.key === q.correctAnswer) {
                                 optClass = 'bg-emerald-100 border-emerald-500 text-emerald-950 font-bold';
-                              } else if (isChosen && !isRight) {
+                              } else if (isChosen && !isCorrect) {
                                 optClass = 'bg-red-100 border-red-500 text-red-950 font-semibold';
                               } else {
                                 optClass = 'bg-white/60 border-slate-200 text-slate-400 opacity-60';
@@ -792,11 +1065,11 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="px-2.5 py-0.5 rounded-lg bg-red-50 border border-red-200 text-[#85181b] font-mono text-[11px] font-bold">
-                  ИТОГОВЫЙ ЭКЗАМЕН
+                  ЭКЗАМЕНАЦИОННЫЙ ЛИСТ
                 </span>
                 {allTestsPassed ? (
                   <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Допуск к экзамену получен
+                    <CheckCircle2 className="w-3 h-3" /> Допуск получен (3 теста сданы)
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-bold flex items-center gap-1">
@@ -805,10 +1078,10 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
                 )}
               </div>
               <h3 className="text-xl font-black text-slate-900">
-                Квалификационный экзамен на звание «Лейтенант юстиции»
+                Письменный квалификационный экзамен (10 билетов)
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Официальный письменный экзаменационный лист из 10 билетов. Проверка проводится лично <b>Председателем СК РФ</b> в панели управления.
+                После отправки экзаменационного листа младший лейтенант распределяется на следственную стажировку к наставнику.
               </p>
             </div>
 
@@ -824,128 +1097,523 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 text-amber-900 text-xs">
               <AlertTriangle className="w-5 h-5 shrink-0 text-amber-700 mt-0.5" />
               <div>
-                <b className="font-bold">Внимание:</b> Для направления результатов экзамена Председателю СК РФ вы обязаны предварительно сдать Тест №1, Тест №2 и Тест №3 (минимум 4/5 в каждом).
+                <b className="font-bold">Внимание:</b> Для направления на стажировку вы обязаны предварительно сдать Тест №1, Тест №2 и Тест №3 (минимум 4/5 в каждом).
               </div>
             </div>
           )}
 
-          {/* If the officer has already submitted the exam */}
-          {currentSubmission ? (
-            <div className={`p-6 rounded-2xl border text-center space-y-4 animate-in zoom-in-95 ${
-              currentSubmission.status === 'approved'
-                ? 'bg-emerald-50 border-emerald-200'
-                : currentSubmission.status === 'rejected'
-                ? 'bg-rose-50 border-rose-200'
-                : 'bg-amber-50 border-amber-200'
-            }`}>
-              {currentSubmission.status === 'approved' ? (
-                <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
-              ) : currentSubmission.status === 'rejected' ? (
-                <AlertCircle className="w-12 h-12 text-rose-600 mx-auto" />
-              ) : (
-                <Clock className="w-12 h-12 text-amber-600 mx-auto animate-pulse" />
-              )}
+          {/* Form to submit exam & choose mentor */}
+          <form onSubmit={handleSubmitFinalExam} className="space-y-6">
+            
+            {/* Mentor Selection Box */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-red-50/70 to-amber-50/50 border border-red-200 rounded-2xl space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                <UserCheck className="w-4 h-4 text-[#85181b]" />
+                <span>Назначение следователя-наставника для стажировки:</span>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {availableMentors.map((m) => (
+                  <label
+                    key={m.fullName}
+                    className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
+                      selectedMentorName === m.fullName
+                        ? 'bg-white border-[#85181b] shadow-sm ring-1 ring-[#85181b]'
+                        : 'bg-white/60 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="mentorChoice"
+                      value={m.fullName}
+                      checked={selectedMentorName === m.fullName}
+                      onChange={() => setSelectedMentorName(m.fullName)}
+                      className="text-[#85181b] focus:ring-[#85181b]"
+                    />
+                    <img src={m.photoUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-slate-200" />
+                    <div className="text-xs">
+                      <div className="font-bold text-slate-900">{m.fullName}</div>
+                      <div className="text-[10px] text-[#85181b] font-medium">{m.rank}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
 
-              <div className="space-y-1.5 max-w-xl mx-auto">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-mono ${
-                  currentSubmission.status === 'approved'
-                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                    : currentSubmission.status === 'rejected'
-                    ? 'bg-rose-100 text-rose-900 border border-rose-300'
-                    : 'bg-amber-100 text-amber-900 border border-amber-300'
-                }`}>
-                  {currentSubmission.status === 'approved'
-                    ? 'ЭКЗАМЕН ПРИНЯТ • ПРИКАЗ ПОДПИСАН'
-                    : currentSubmission.status === 'rejected'
-                    ? 'ЭКЗАМЕН ОТКЛОНЕН ПРЕДСЕДАТЕЛЕМ'
-                    : 'НА ПРОВЕРКЕ У ПРЕДСЕДАТЕЛЯ СК РФ'}
-                </span>
+            {/* 10 Questions */}
+            <div className="space-y-5">
+              {QUALIFICATION_QUESTIONS.map((q) => (
+                <div
+                  key={q.id}
+                  className="p-4 sm:p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5 focus-within:border-[#85181b] transition"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-7 h-7 rounded-lg bg-red-50 border border-red-200 text-[#85181b] font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                      {q.id}
+                    </span>
+                    <div className="space-y-1">
+                      <label className="text-xs sm:text-sm font-bold text-slate-900 pt-0.5 leading-snug block">
+                        {q.text}
+                      </label>
+                      <span className="text-[11px] text-slate-400 italic block">
+                        Ориентир для ответа: {q.hint}
+                      </span>
+                    </div>
+                  </div>
 
-                <h4 className="text-base font-bold text-slate-900">
-                  {currentSubmission.status === 'approved'
-                    ? 'Поздравляем! Квалификационный экзамен успешно утвержден!'
-                    : currentSubmission.status === 'rejected'
-                    ? 'Экзаменационная работа возвращена на доработку'
-                    : 'Экзаменационная работа направлена Председателю СК России'}
-                </h4>
+                  <textarea
+                    rows={3}
+                    value={examAnswers[q.id] || ''}
+                    onChange={(e) => handleExamAnswerChange(q.id, e.target.value)}
+                    placeholder="Введите развернутый мотивированный ответ со ссылками на закон, порядок действий и процессуальные нормы..."
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#85181b] resize-none leading-relaxed"
+                  />
+                </div>
+              ))}
+            </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {currentSubmission.status === 'approved'
-                    ? 'Председатель СК РФ проверил ваши ответы на 10 билетов и подписал приказ о присвоении вам специального звания «Лейтенант юстиции».'
-                    : currentSubmission.status === 'rejected'
-                    ? `Комментарий Председателя: ${currentSubmission.chairmanComment || 'Недостаточно подробные ответы. Изучите нормативную базу и пересдайте экзамен.'}`
-                    : 'Ваша работа из 10 вопросов ожидает резолюции и проверки в Панели Председателя СК РФ (Генерал юстиции Чернов Д. М.).'}
-                </p>
+            {/* Submit Button */}
+            <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-slate-500 font-medium">
+                Заполнено <b>{writtenQuestionsAnsweredCount} из 10</b> билетов (минимум 8 для отправки)
               </div>
 
-              {currentSubmission.status === 'rejected' && (
-                <div className="pt-2">
-                  <button
-                    onClick={() => {
-                      const updated = allSubmissions.filter((s) => s.id !== currentSubmission.id);
-                      saveExamSubmissions(updated);
-                      setAllSubmissions(updated);
-                      onShowToast('Экзаменационный лист разблокирован для повторного заполнения.');
-                    }}
-                    className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-md transition cursor-pointer"
-                  >
-                    Пересдать и внести исправления в билеты
-                  </button>
+              <button
+                type="submit"
+                disabled={!allTestsPassed}
+                className="px-8 py-3 rounded-xl bg-[#85181b] hover:bg-[#6b1316] text-white font-bold text-xs shadow-md transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              >
+                <Briefcase className="w-4 h-4" />
+                <span>Завершить теорию и перейти на следственную стажировку</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. INVESTIGATIVE INTERNSHIP TAB (СЛЕДСТВЕННАЯ СТАЖИРОВКА И ПРАКТИКА)      */}
+      {/* ========================================================================= */}
+      {selectedSection === 'internship' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in">
+          
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 rounded-lg bg-red-50 border border-red-200 text-[#85181b] font-mono text-[11px] font-bold">
+                  ПРАКТИЧЕСКАЯ СТАЖИРОВКА
+                </span>
+                {currentSubmission?.status === 'approved' ? (
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Наставник дал добро • Звание присвоено
+                  </span>
+                ) : currentSubmission?.status === 'rejected' ? (
+                  <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-800 text-[10px] font-bold flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> Требуется доработка заданий
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-bold flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> Прохождение стажировки под кураторством
+                  </span>
+                )}
+              </div>
+              <h3 className="text-xl font-black text-slate-900">
+                Дневник следственной стажировки младшего лейтенанта
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Выполните 5 практических процессуальных заданий совместно с закрепленным следователем-наставником.
+              </p>
+            </div>
+
+            {currentSubmission?.mentorName && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">Следователь-наставник:</div>
+                  <div className="text-xs font-bold text-slate-900">{currentSubmission.mentorName}</div>
+                  <div className="text-[10px] text-[#85181b] font-medium">{currentSubmission.mentorRank}</div>
                 </div>
-              )}
+                <div className="w-10 h-10 rounded-xl bg-red-100 border border-red-300 flex items-center justify-center text-[#85181b] font-bold text-xs">
+                  СК
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!currentSubmission ? (
+            <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+              <Briefcase className="w-12 h-12 text-slate-400 mx-auto" />
+              <div className="max-w-md mx-auto space-y-1">
+                <h4 className="text-base font-bold text-slate-800">Стажировка еще не инициирована</h4>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Для направления на стажировку к следователю-наставнику сдайте 3 теоретических теста и отправьте экзаменационный лист из 10 билетов.
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedSection('final_exam')}
+                className="px-6 py-2.5 rounded-xl bg-[#85181b] text-white font-bold text-xs shadow-md hover:bg-[#6b1316] transition cursor-pointer"
+              >
+                Перейти к экзаменационному листу
+              </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmitFinalExam} className="space-y-6">
-              <div className="space-y-5">
-                {QUALIFICATION_QUESTIONS.map((q) => (
-                  <div
-                    key={q.id}
-                    className="p-4 sm:p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5 focus-within:border-[#85181b] transition"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <span className="w-7 h-7 rounded-lg bg-red-50 border border-red-200 text-[#85181b] font-mono font-bold text-xs flex items-center justify-center shrink-0">
-                        {q.id}
+            <div className="space-y-6">
+              
+              {/* Approval Success Banner if Approved */}
+              {currentSubmission.status === 'approved' && (
+                <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-300 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
+                      <Trophy className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-950 font-mono text-[10px] font-black uppercase">
+                        СТАЖИРОВКА УСПЕШНО ЗАВЕРШЕНА
                       </span>
-                      <div className="space-y-1">
-                        <label className="text-xs sm:text-sm font-bold text-slate-900 pt-0.5 leading-snug block">
-                          {q.text}
-                        </label>
-                        <span className="text-[11px] text-slate-400 italic block">
-                          Ориентир для ответа: {q.hint}
-                        </span>
+                      <h4 className="text-lg font-black text-emerald-950">
+                        Следователь-наставник дал добро! Приказ подписан!
+                      </h4>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-white/80 rounded-xl border border-emerald-200 text-xs text-slate-800 space-y-1.5">
+                    <div className="font-bold flex items-center gap-1.5 text-emerald-900">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>Служебная характеристика-отзыв наставника ({currentSubmission.mentorName}):</span>
+                    </div>
+                    <p className="italic text-slate-700">
+                      «{currentSubmission.mentorReview || 'Младший лейтенант проявил высокий уровень ответственности, строго соблюдает законность и правила процессуального оформления. Допущен к самостоятельной следственной работе.'}»
+                    </p>
+                    <div className="text-[10px] text-slate-500 pt-1 font-mono">
+                      Дата аттестации: {currentSubmission.reviewedAt || new Date().toLocaleDateString('ru-RU')}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Rework Banner if Rejected */}
+              {currentSubmission.status === 'rejected' && (
+                <div className="p-5 rounded-2xl bg-rose-50 border-2 border-rose-300 space-y-2">
+                  <div className="flex items-center gap-2 text-rose-900 font-bold text-sm">
+                    <AlertCircle className="w-5 h-5 text-rose-600" />
+                    <span>Замечания наставника: материалы возвращены на доработку</span>
+                  </div>
+                  <p className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-rose-200">
+                    {currentSubmission.mentorReview || 'Необходимо дополнить описательную часть протоколов и устранить ошибки в фиксации вещественных доказательств.'}
+                  </p>
+                </div>
+              )}
+
+              {/* 5 Practical Tasks List */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-[#85181b]" />
+                    <span>Практические задачи стажировки (5 этапов):</span>
+                  </h4>
+                  <span className="text-xs font-bold text-slate-500">
+                    Выполнено: {currentSubmission.internshipTasks?.filter((t) => t.completed).length || 0} из 5
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  {(currentSubmission.internshipTasks || DEFAULT_INTERNSHIP_TASKS).map((task) => {
+                    const isTaskDone = task.completed;
+                    const notesValue = activeTaskNotes[task.id] !== undefined ? activeTaskNotes[task.id] : (task.internNotes || '');
+
+                    return (
+                      <div
+                        key={task.id}
+                        className={`p-5 rounded-2xl border transition space-y-3 ${
+                          isTaskDone
+                            ? 'bg-emerald-50/40 border-emerald-200'
+                            : 'bg-slate-50/60 border-slate-200'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleTaskCompleted(task.id)}
+                              className={`w-7 h-7 rounded-xl border flex items-center justify-center font-mono font-bold text-xs shrink-0 transition cursor-pointer ${
+                                isTaskDone
+                                  ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                                  : 'bg-white border-slate-300 text-slate-600 hover:border-[#85181b]'
+                              }`}
+                              title="Отметить задание выполненным"
+                            >
+                              {isTaskDone ? <Check className="w-4 h-4" /> : task.id}
+                            </button>
+
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h5 className="text-sm font-bold text-slate-900 leading-snug">
+                                  {task.title}
+                                </h5>
+                                {isTaskDone && (
+                                  <span className="px-2 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                    ВЫПОЛНЕНО
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                                {task.description}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <span className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-200 font-mono text-slate-700 font-bold uppercase">
+                              {task.category}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* RP Instruction Callout */}
+                        <div className="p-3 bg-white rounded-xl border border-slate-200/90 text-xs text-slate-600 flex items-start gap-2">
+                          <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <b className="text-slate-800">RP-рекомендация:</b> {task.rpInstruction}
+                          </div>
+                        </div>
+
+                        {/* Intern Report Notes Input */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                            <span>Отчет стажера о выполнении (номер дела, протокол, фабула):</span>
+                            {task.completedAt && (
+                              <span className="text-slate-400 font-mono font-normal">
+                                Завершено: {task.completedAt}
+                              </span>
+                            )}
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={notesValue}
+                              onChange={(e) =>
+                                setActiveTaskNotes((prev) => ({
+                                  ...prev,
+                                  [task.id]: e.target.value
+                                }))
+                              }
+                              placeholder="Например: Выезд осуществлен, протокол ОМП составлен по делу № 2026/08-14-УД..."
+                              className="flex-1 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#85181b]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveTaskNotes(task.id)}
+                              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                            >
+                              Сохранить отчет
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Bottom Notification */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <div className="text-slate-600">
+                  Все выполненные пункты и отчеты синхронизируются в режиме реального времени в <b>Кабинете наставника</b>.
+                </div>
+                {currentSubmission.status === 'internship' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onShowToast('Материалы стажировки направлены наставнику на итоговую аттестацию!');
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-[#85181b] hover:bg-[#6b1316] text-white font-bold transition cursor-pointer shadow-sm"
+                  >
+                    Запросить аттестацию у наставника
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 5. MENTOR CABINET TAB (КУРАТОРСТВО И АТТЕСТАЦИЯ НАСТАВНИКА)                */}
+      {/* ========================================================================= */}
+      {selectedSection === 'mentor_cabinet' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 font-mono text-[11px] font-bold">
+                  КАБИНЕТ НАСТАВНИКА
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[10px] font-bold">
+                  Кураторство и присвоение званий
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-slate-900">
+                Аттестационная комиссия и кураторство стажеров
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Проверка практических отчетов стажеров, вынесение служебной характеристики и решение о допуске («Дать добро» / «На доработку»).
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-right">
+              <div className="text-[11px] text-slate-500 font-bold">Всего стажеров в базе:</div>
+              <div className="text-lg font-black font-mono text-slate-900">
+                {allSubmissions.length}
+              </div>
+            </div>
+          </div>
+
+          {allSubmissions.length === 0 ? (
+            <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-500 space-y-2">
+              <Users className="w-10 h-10 text-slate-400 mx-auto" />
+              <div>Нет активных направлений на стажировку. Младшие лейтенанты появятся здесь после сдачи теоретического экзамена.</div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {allSubmissions.map((sub) => {
+                const isApproved = sub.status === 'approved';
+                const isRejected = sub.status === 'rejected';
+                const completedTasksCount = sub.internshipTasks?.filter((t) => t.completed).length || 0;
+
+                return (
+                  <div
+                    key={sub.id}
+                    className={`p-5 rounded-2xl border transition space-y-4 ${
+                      isApproved
+                        ? 'bg-emerald-50/30 border-emerald-200'
+                        : isRejected
+                        ? 'bg-rose-50/30 border-rose-200'
+                        : 'bg-slate-50/80 border-slate-200'
+                    }`}
+                  >
+                    {/* Header Info */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-red-100 text-[#85181b] font-bold text-sm flex items-center justify-center border border-red-200">
+                          СК
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-slate-900">{sub.officerName}</h4>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isApproved
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : isRejected
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-900'
+                            }`}>
+                              {isApproved ? 'ДОБРО ДАНО • ПОВЫШЕН' : isRejected ? 'НА ДОРАБОТКЕ' : 'ПРОХОДИТ СТАЖИРОВКУ'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 font-medium">
+                            {sub.department} • Жетон: <b className="font-mono text-slate-700">{sub.badgeNumber}</b>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right text-xs">
+                        <div className="text-slate-500">Наставник: <b className="text-slate-800">{sub.mentorName || 'Воронов А.С.'}</b></div>
+                        <div className="text-[11px] text-slate-400">Направлен: {sub.submittedAt}</div>
                       </div>
                     </div>
 
-                    <textarea
-                      rows={3}
-                      value={examAnswers[q.id] || ''}
-                      onChange={(e) => handleExamAnswerChange(q.id, e.target.value)}
-                      placeholder="Введите развернутый мотивированный ответ со ссылками на закон, порядок действий и процессуальные нормы..."
-                      className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#85181b] resize-none leading-relaxed"
-                    />
+                    {/* Scores & Tasks Summary */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-0.5">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase">Тест №1 (УПК):</span>
+                        <div className="font-mono font-bold text-slate-900">{sub.test1Score}</div>
+                      </div>
+
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-0.5">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase">Тест №2 (Устав):</span>
+                        <div className="font-mono font-bold text-slate-900">{sub.test2Score}</div>
+                      </div>
+
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-0.5">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase">Тест №3 (Крим):</span>
+                        <div className="font-mono font-bold text-slate-900">{sub.test3Score}</div>
+                      </div>
+
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-0.5">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase">Задачи стажировки:</span>
+                        <div className="font-mono font-bold text-[#85181b]">{completedTasksCount} из 5 выполнено</div>
+                      </div>
+                    </div>
+
+                    {/* Tasks Details List */}
+                    {sub.internshipTasks && sub.internshipTasks.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-slate-200/80">
+                        <div className="text-xs font-bold text-slate-800">Отчеты стажера по 5 практическим заданиям:</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          {sub.internshipTasks.map((t) => (
+                            <div key={t.id} className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-800">№{t.id} {t.title}</span>
+                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${t.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                                  {t.completed ? 'Сделано' : 'В процессе'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 italic">
+                                {t.internNotes ? `«${t.internNotes}»` : 'Стажер еще не заполнил отчет по данному пункту.'}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mentor Evaluation Area & Action Buttons */}
+                    <div className="pt-3 border-t border-slate-200/80 space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-800 block">
+                          Служебная характеристика-отзыв наставника:
+                        </label>
+                        <textarea
+                          rows={2}
+                          defaultValue={sub.mentorReview || ''}
+                          onChange={(e) => setMentorReviewText(e.target.value)}
+                          placeholder="Напишите мотивированный отзыв о работе младшего лейтенанта на стажировке..."
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#85181b] resize-none leading-relaxed"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleMentorReject(sub, mentorReviewText || 'Недостаточно полные отчеты по заданиям. Отправлено на повторную отработку.')}
+                          className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                        >
+                          <ThumbsDown className="w-4 h-4 text-rose-600" />
+                          <span>Отправить на доработку</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleMentorApprove(sub)}
+                          className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer flex items-center gap-2"
+                        >
+                          <ThumbsUp className="w-4 h-4" />
+                          <span>Дать добро (Зачесть стажировку и присвоить звание)</span>
+                        </button>
+                      </div>
+                    </div>
+
                   </div>
-                ))}
-              </div>
-
-              {/* Submit Button */}
-              <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs text-slate-500 font-medium">
-                  Заполнено <b>{writtenQuestionsAnsweredCount} из 10</b> билетов (минимум 8 для отправки)
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!allTestsPassed}
-                  className="px-8 py-3 rounded-xl bg-[#85181b] hover:bg-[#6b1316] text-white font-bold text-xs shadow-md transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Отправить работу Председателю СК РФ на проверку</span>
-                </button>
-              </div>
-            </form>
+                );
+              })}
+            </div>
           )}
+
         </div>
       )}
+
     </div>
   );
 };
+
+export default JuniorExamView;

@@ -1,5 +1,19 @@
 import { RankType } from '../types';
 
+export interface InternshipTask {
+  id: number;
+  title: string;
+  category: 'omp' | 'interrogation' | 'evidence' | 'document' | 'tactics';
+  description: string;
+  rpInstruction: string;
+  completed: boolean;
+  completedAt?: string;
+  internNotes?: string;
+  attachedCaseNumber?: string;
+  mentorGrade?: 'зачтено' | 'на_доработку' | 'в_процессе';
+  mentorFeedback?: string;
+}
+
 export interface ExamSubmission {
   id: string;
   officerId?: string;
@@ -15,10 +29,63 @@ export interface ExamSubmission {
   test3Passed: boolean;
   test3Score: string;
   answers: Record<number, string>;
-  status: 'pending' | 'approved' | 'rejected';
-  chairmanComment?: string;
+  status: 'pending' | 'internship' | 'approved' | 'rejected';
+  
+  // Mentorship & Internship Fields
+  mentorName?: string;
+  mentorRank?: string;
+  mentorPosition?: string;
+  mentorBadge?: string;
+  internshipStartedAt?: string;
+  internshipTasks?: InternshipTask[];
+  mentorReview?: string; // Служебная характеристика-отзыв наставника
+  mentorApproved?: boolean; // Дано добро наставником
   reviewedAt?: string;
+  chairmanComment?: string;
 }
+
+export const DEFAULT_INTERNSHIP_TASKS: InternshipTask[] = [
+  {
+    id: 1,
+    title: 'Выезд на место происшествия и составление протокола ОМП',
+    category: 'omp',
+    description: 'Совместно со следователем-наставником осуществить выезд на место правонарушения, оцепить периметр, зафиксировать следовую обстановку и составить проект протокола ОМП.',
+    rpInstruction: 'Отыграйте в рацию доклад о выезде с наставником, проведите фотофиксацию улик с криминалистической линейкой и внесите данные в протокол.',
+    completed: false
+  },
+  {
+    id: 2,
+    title: 'Участие в процессуальном допросе подозреваемого / свидетеля',
+    category: 'interrogation',
+    description: 'Присутствовать при допросе фигуранта под контролем следователя-наставника, разъяснить права (правило Миранды, ст. 51 Конституции РФ) и занести показания в протокол.',
+    rpInstruction: 'Оформить вводную часть протокола допроса, зафиксировать показания без наводящих вопросов и дать фигуранту на подпись.',
+    completed: false
+  },
+  {
+    id: 3,
+    title: 'Изъятие, упаковка и опечатывание вещественных доказательств',
+    category: 'evidence',
+    description: 'Произвести изъятие найденных улик в криминалистических перчатках, упаковать в номерной сейф-пакет и составить опечатанную бирку с подписями участников.',
+    rpInstruction: 'Отыграть /me и /do по изъятию гильз/ножа/документов, нанесению оттиска печати на сейф-пакет и передаче в камеру вещдоков.',
+    completed: false
+  },
+  {
+    id: 4,
+    title: 'Составление проекта процессуального постановления',
+    category: 'document',
+    description: 'В Генераторе документов СК составить черновик Постановления о возбуждении уголовного дела либо Постановления о привлечении в качестве обвиняемого.',
+    rpInstruction: 'Сформировать официальный бланк с фабулой и реквизитами дела, после чего передать наставнику на предварительное согласование.',
+    completed: false
+  },
+  {
+    id: 5,
+    title: 'Сдача нормативов применения табельного оружия и регламента спецсвязи',
+    category: 'tactics',
+    description: 'Продемонстрировать наставнику правила ношения и применения табельного пистолета Макарова (ПМ), спецсредств и соблюдение служебного радиообмена СК РФ.',
+    rpInstruction: 'Отыграть снятие с предохранителя / доклад в служебную волну рации с указанием позывного и квадрата патрулирования/выезда.',
+    completed: false
+  }
+];
 
 export const EXAM_STORAGE_KEYS = {
   SUBMISSIONS: 'sk_rf_junior_exam_submissions_v2',

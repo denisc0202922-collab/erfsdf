@@ -18,9 +18,14 @@ import {
   Maximize2,
   X,
   Crosshair,
-  BadgeAlert
+  BadgeAlert,
+  Camera,
+  Upload,
+  Image as ImageIcon,
+  Link as LinkIcon
 } from 'lucide-react';
 import { OfficialEmblem, OfficialStampSeal } from './OfficialEmblem';
+import { saveAccounts } from '../utils/storage';
 
 interface OfficerBadgeViewProps {
   officer: OfficerProfile;
@@ -49,14 +54,75 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
   const [isFullscreenModal, setIsFullscreenModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'badge' | 'file' | 'weapons'>('badge');
 
+  // Photo customization modal state
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [tempPhotoUrl, setTempPhotoUrl] = useState(officer.photoUrl || '');
+  const [customUrlInput, setCustomUrlInput] = useState('');
+  const [photoSourceMode, setPhotoSourceMode] = useState<'upload' | 'url' | 'presets'>('presets');
+
   // Quick photo presets for roleplay
   const photoPresets = [
-    { label: 'Мужской (Парадная форма)', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80' },
-    { label: 'Мужской (Служебная форма)', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80' },
-    { label: 'Мужской (Офицерский состав)', url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80' },
-    { label: 'Женский (Следственный орган)', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80' },
-    { label: 'Женский (Юстиция РФ)', url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=300&auto=format&fit=crop&q=80' }
+    { label: 'Мужской (Парадная форма СК РФ)', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80' },
+    { label: 'Мужской (Служебный китель юстиции)', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80' },
+    { label: 'Мужской (Оперативная куртка / ОРОВД)', url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80' },
+    { label: 'Мужской (Старший офицерский состав)', url: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=300&auto=format&fit=crop&q=80' },
+    { label: 'Женский (Служебная форма СК РФ)', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80' },
+    { label: 'Женский (Парадный китель юстиции)', url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=300&auto=format&fit=crop&q=80' },
+    { label: 'Женский (Офицер следственного отдела)', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80' }
   ];
+
+  // Handle local file upload
+  const handlePhotoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      onShowToast('Ошибка: Пожалуйста, выберите файл изображения (JPG, PNG, WEBP)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setTempPhotoUrl(result);
+        onShowToast('Фотография загружена! Нажмите «Сохранить фото в профиль»');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Save custom photo to officer & sync accounts
+  const handleSavePhoto = () => {
+    if (!tempPhotoUrl.trim()) {
+      onShowToast('Укажите или загрузите фотографию');
+      return;
+    }
+    const updated = {
+      ...officer,
+      photoUrl: tempPhotoUrl
+    };
+    setFormData((prev) => ({ ...prev, photoUrl: tempPhotoUrl }));
+    onUpdateOfficer(updated);
+
+    if (accounts && accounts.length > 0) {
+      const updatedAccounts = accounts.map((acc) => {
+        if (
+          acc.fullName.toLowerCase() === officer.fullName.toLowerCase() ||
+          acc.badgeNumber === officer.badgeNumber
+        ) {
+          return { ...acc, photoUrl: tempPhotoUrl };
+        }
+        return acc;
+      });
+      try {
+        saveAccounts(updatedAccounts);
+      } catch {
+        // ignore
+      }
+    }
+
+    setIsPhotoModalOpen(false);
+    onShowToast('Служебная фотография удостоверения и профиля успешно обновлена!');
+  };
 
   const ranks: RankType[] = [
     'Младший лейтенант юстиции',
@@ -132,6 +198,19 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setTempPhotoUrl(officer.photoUrl || '');
+              setIsPhotoModalOpen(true);
+            }}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs transition cursor-pointer shadow-sm"
+            title="Загрузить свою фотографию с ПК или выбрать служебную форму"
+          >
+            <Camera className="w-4 h-4 text-amber-700" />
+            <span>Сменить фото профиля</span>
+          </button>
+
           <button
             type="button"
             onClick={copyRPAction}
@@ -281,12 +360,26 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
                 {/* Photo Column */}
                 <div className="flex flex-col items-center flex-shrink-0">
                   {/* Photo Container with Official Frame */}
-                  <div className="relative w-28 sm:w-32 h-36 sm:h-40 rounded-sm border-2 border-slate-700 overflow-hidden bg-slate-200 shadow-md">
+                  <div className="relative w-28 sm:w-32 h-36 sm:h-40 rounded-sm border-2 border-slate-700 overflow-hidden bg-slate-200 shadow-md group">
                     <img
                       src={officer.photoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
                       alt={officer.fullName}
                       className="w-full h-full object-cover"
                     />
+
+                    {/* Change Photo Overlay Button on Hover */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempPhotoUrl(officer.photoUrl || '');
+                        setIsPhotoModalOpen(true);
+                      }}
+                      className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 text-white text-[10px] font-bold cursor-pointer backdrop-blur-[1px]"
+                      title="Нажмите, чтобы загрузить новое фото или сменить форму"
+                    >
+                      <Camera className="w-5 h-5 text-amber-300 animate-bounce" />
+                      <span className="bg-black/60 px-2 py-0.5 rounded border border-white/20">Сменить фото</span>
+                    </button>
 
                     {/* Hologram Overlay (in the top corner of the photo / emblem border) */}
                     <div
@@ -702,11 +795,25 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
           {/* Left Column: Officer Passport Summary */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
             <div className="text-center space-y-2">
-              <img
-                src={officer.photoUrl}
-                alt={officer.fullName}
-                className="w-28 h-36 mx-auto rounded-2xl object-cover border-2 border-slate-200 shadow-md"
-              />
+              <div className="relative w-28 h-36 mx-auto rounded-2xl overflow-hidden border-2 border-slate-200 shadow-md group">
+                <img
+                  src={officer.photoUrl}
+                  alt={officer.fullName}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempPhotoUrl(officer.photoUrl || '');
+                    setIsPhotoModalOpen(true);
+                  }}
+                  className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white text-[10px] font-bold cursor-pointer backdrop-blur-[1px]"
+                  title="Нажмите, чтобы сменить фото"
+                >
+                  <Camera className="w-5 h-5 text-amber-300" />
+                  <span>Сменить фото</span>
+                </button>
+              </div>
               <div>
                 <h3 className="text-base font-bold text-slate-900">{officer.fullName}</h3>
                 <p className="text-xs text-[#85181b] font-bold">{officer.rank}</p>
@@ -976,6 +1083,210 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
                 className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition cursor-pointer"
               >
                 Закрыть просмотр
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 6. PHOTO CUSTOMIZATION & UPLOAD MODAL                                     */}
+      {/* ========================================================================= */}
+      {isPhotoModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="relative max-w-2xl w-full bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-6 animate-in zoom-in-95">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center text-[#85181b]">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
+                    Служебная фотография сотрудника СК РФ
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Загрузите свой файл, укажите прямую ссылку или выберите образец ведомственной формы
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsPhotoModalOpen(false)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Source Mode Tabs */}
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+              <button
+                type="button"
+                onClick={() => setPhotoSourceMode('presets')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                  photoSourceMode === 'presets'
+                    ? 'bg-white text-[#85181b] shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span>Образцы формы (Пресеты)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPhotoSourceMode('upload')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                  photoSourceMode === 'upload'
+                    ? 'bg-white text-[#85181b] shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Upload className="w-4 h-4" />
+                <span>Загрузить с ПК / Телефона</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPhotoSourceMode('url')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                  photoSourceMode === 'url'
+                    ? 'bg-white text-[#85181b] shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <LinkIcon className="w-4 h-4" />
+                <span>Прямая ссылка (URL)</span>
+              </button>
+            </div>
+
+            {/* Mode 1: Presets */}
+            {photoSourceMode === 'presets' && (
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Выберите готовую служебную форму для удостоверения:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                  {photoPresets.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setTempPhotoUrl(preset.url)}
+                      className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition cursor-pointer flex items-center gap-3 ${
+                        tempPhotoUrl === preset.url
+                          ? 'bg-red-50 border-[#85181b] text-[#85181b] shadow-sm ring-1 ring-[#85181b]'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      <img src={preset.url} alt="" className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0" />
+                      <div className="leading-snug">{preset.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mode 2: File Upload */}
+            {photoSourceMode === 'upload' && (
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Загрузить фотографию с вашего устройства (ПК / Ноутбук / Телефон):
+                </label>
+                <label className="border-2 border-dashed border-slate-300 hover:border-[#85181b] rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-red-50/40 transition">
+                  <Upload className="w-8 h-8 text-[#85181b]" />
+                  <span className="text-xs font-bold text-slate-800">
+                    Нажмите для выбора файла или перетащите изображение сюда
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    Поддерживаются форматы: PNG, JPG, JPEG, WEBP
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* Mode 3: Direct URL */}
+            {photoSourceMode === 'url' && (
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Вставьте прямую ссылку на изображение (URL):
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={customUrlInput}
+                    onChange={(e) => setCustomUrlInput(e.target.value)}
+                    placeholder="https://example.com/my-officer-photo.jpg"
+                    className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-[#85181b]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customUrlInput.trim()) {
+                        setTempPhotoUrl(customUrlInput.trim());
+                        onShowToast('Ссылка применена к предпросмотру');
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    Применить
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Live Preview Section */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
+              <div className="relative w-24 h-32 rounded-sm border-2 border-slate-700 overflow-hidden bg-slate-200 shadow-md shrink-0">
+                <img
+                  src={tempPhotoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
+                  alt="Предпросмотр"
+                  className="w-full h-full object-cover"
+                />
+                <div
+                  className="absolute top-1 right-1 w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-300 via-amber-100 to-yellow-500 border border-yellow-600/60 shadow-md flex flex-col items-center justify-center text-[5.5px] font-black text-amber-950 opacity-90"
+                >
+                  <span className="leading-none text-[5px]">СК</span>
+                  <span className="leading-none text-[4.5px] font-mono">РФ</span>
+                </div>
+              </div>
+
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="text-xs font-bold text-slate-900">Предпросмотр в служебном бланке удостоверения</div>
+                <div className="text-[11px] text-slate-500 leading-relaxed">
+                  Фотография будет автоматически встроена в официальное служебное удостоверение, личное дело и профиль сотрудника.
+                </div>
+                <div className="text-[11px] font-mono text-[#85181b] font-bold">
+                  {officer.rank} • {officer.fullName}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setIsPhotoModalOpen(false)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePhoto}
+                className="px-6 py-2.5 bg-[#85181b] hover:bg-[#6b1316] text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                <span>Сохранить фото в профиль и удостоверение</span>
               </button>
             </div>
 

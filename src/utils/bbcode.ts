@@ -40,6 +40,16 @@ ${doc.decisionText}
 }
 
 export function reportToBBCode(report: ReportRecord): string {
+  const juniorSection = report.juniorOfficerName
+    ? `\n[B]Стажер / Помощник следователя:[/B] ${report.juniorOfficerName} (Жетон: ${report.juniorOfficerBadge || 'СК-77-0492'})\n[B]Рекомендация наставника:[/B] ${
+        report.internshipRecommendation === 'promote_lieutenant'
+          ? '[COLOR=rgb(39, 174, 96)]Ходатайствую о присвоении звания «Лейтенант юстиции» (Дать добро)[/COLOR]'
+          : report.internshipRecommendation === 'excellent'
+          ? '[COLOR=rgb(39, 174, 96)]С отличием • Ходатайствую о досрочном присвоении звания[/COLOR]'
+          : '[COLOR=rgb(230, 126, 34)]Рекомендуется продление практической стажировки[/COLOR]'
+      }\n`
+    : '';
+
   return `[CENTER][IMG]https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Emblem_of_the_Investigative_Committee_of_Russia.svg/240px-Emblem_of_the_Investigative_Committee_of_Russia.svg.png[/IMG]
 [B][SIZE=5]РАПОРТ О ПРОДЕЛАННОЙ РАБОТЕ[/SIZE][/B]
 [SIZE=3]Следственный комитет Российской Федерации[/SIZE]
@@ -52,19 +62,23 @@ export function reportToBBCode(report: ReportRecord): string {
 [/RIGHT]
 
 [CENTER][B][SIZE=4]${report.reportNumber}: ${report.title}[/SIZE][/B][/CENTER]
-
+${juniorSection}
 [B]1. Описание проделанной работы:[/B]
 ${report.summary}
 
 [B]2. Перечень выполненных процессуальных и следственных действий:[/B]
 ${report.actionsPerformed.map((act, i) => `[B]${i + 1}.[/B] ${act}`).join('\n')}
 
-[B]3. Статистические показатели:[/B]
-- Проведено допросов: [B]${report.interrogationsCount}[/B]
+[B]3. Статистические показатели и баллы:[/B]
+${
+  report.type === 'junior_internship'
+    ? `- Норматив за кураторство и подготовку стажера: [B]25 баллов[/B]\n- Итоговые расчетные баллы: [B]25 баллов[/B]`
+    : `- Проведено допросов: [B]${report.interrogationsCount}[/B]
 - Приобщено вещественных доказательств: [B]${report.attachedEvidenceCount}[/B]
 - Задержано / арестовано лиц: [B]${report.arrestsCount}[/B]
 - Прикрепленные уголовные дела: ${report.attachedCases.join(', ') || 'Нет'}
-- Расчетные баллы эффективности: [B]${report.pointsCalculated} баллов[/B]
+- Расчетные баллы эффективности: [B]${report.pointsCalculated} баллов[/B]`
+}
 
 [HR][/HR]
 [RIGHT]

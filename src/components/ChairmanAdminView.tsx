@@ -2013,43 +2013,84 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
             </div>
 
             {/* Candidate Summary Box */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
               <div>
                 <span className="text-slate-400 block text-[10px]">ПОДРАЗДЕЛЕНИЕ</span>
                 <span className="font-bold text-slate-800">{selectedExamSubmission.department}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[10px]">ЖЕТОН / ДАТА СДАЧИ</span>
+                <span className="text-slate-400 block text-[10px]">ЖЕТОН / ДАТА</span>
                 <span className="font-bold text-slate-800">{selectedExamSubmission.badgeNumber} • {selectedExamSubmission.submittedAt}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-[10px]">ТЕОРЕТИЧЕСКИЕ ТЕСТЫ</span>
-                <span className="font-bold text-emerald-700">Т1: {selectedExamSubmission.test1Score} | Т2: {selectedExamSubmission.test2Score} | Т3: {selectedExamSubmission.test3Score}</span>
+                <span className="text-slate-400 block text-[10px]">НАСТАВНИК</span>
+                <span className="font-bold text-[#85181b]">{selectedExamSubmission.mentorName || 'Воронов А.С.'}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px]">СТАТУС СТАЖИРОВКИ</span>
+                <span className="font-bold text-emerald-700">
+                  {selectedExamSubmission.internshipTasks?.filter((t) => t.completed).length || 0} из 5 заданий выполнено
+                </span>
               </div>
             </div>
 
+            {/* Internship Practical Tasks Reports */}
+            {selectedExamSubmission.internshipTasks && selectedExamSubmission.internshipTasks.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#85181b] flex items-center gap-1.5">
+                  <Briefcase className="w-4 h-4" />
+                  <span>Отчеты о прохождении 5 практических заданий стажировки:</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[25vh] overflow-y-auto pr-1 text-xs">
+                  {selectedExamSubmission.internshipTasks.map((t) => (
+                    <div key={t.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900">№{t.id} {t.title}</span>
+                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${t.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                          {t.completed ? 'Выполнено' : 'В процессе'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 italic">
+                        {t.internNotes ? `Отчет: «${t.internNotes}»` : 'Отчет стажером еще не заполнен.'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mentor Review if present */}
+            {selectedExamSubmission.mentorReview && (
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs space-y-1">
+                <div className="font-bold text-emerald-950 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Служебный отзыв наставника ({selectedExamSubmission.mentorName}):</span>
+                </div>
+                <p className="italic text-emerald-900">«{selectedExamSubmission.mentorReview}»</p>
+              </div>
+            )}
+
             {/* 10 Written Questions & Answers */}
-            <div className="space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#85181b]">
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                 Ответы сотрудника на 10 квалификационных билетов:
               </h4>
 
-              <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1">
+              <div className="space-y-2.5 max-h-[30vh] overflow-y-auto pr-1">
                 {QUALIFICATION_QUESTIONS.map((q) => {
                   const candidateAnswer = selectedExamSubmission.answers[q.id];
                   return (
-                    <div key={q.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div key={q.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
                       <div className="flex items-start gap-2">
-                        <span className="w-6 h-6 rounded-lg bg-red-50 border border-red-200 text-[#85181b] font-bold text-xs flex items-center justify-center shrink-0">
+                        <span className="w-5 h-5 rounded-lg bg-red-50 border border-red-200 text-[#85181b] font-bold text-[11px] flex items-center justify-center shrink-0">
                           {q.id}
                         </span>
                         <div>
                           <div className="text-xs font-bold text-slate-900">{q.text}</div>
-                          <div className="text-[10px] text-slate-400 italic">Ключевой ориентир: {q.hint}</div>
                         </div>
                       </div>
 
-                      <div className="p-3 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                      <div className="p-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
                         {candidateAnswer ? (
                           candidateAnswer
                         ) : (
@@ -2071,7 +2112,7 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
                 rows={2}
                 value={chairmanExamComment}
                 onChange={(e) => setChairmanExamComment(e.target.value)}
-                placeholder="Экзамен сдан успешно. Присвоить специальное звание «Лейтенант юстиции»..."
+                placeholder="Стажировка зачтена, экзамен сдан. Даю добро на присвоение специального звания «Лейтенант юстиции»..."
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#85181b]"
               />
             </div>
@@ -2101,7 +2142,7 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
                 className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center gap-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Утвердить экзамен и издать приказ о звании «Лейтенант»</span>
+                <span>Дать добро и издать приказ о звании «Лейтенант»</span>
               </button>
             </div>
 
