@@ -6,8 +6,11 @@ import {
   RankType,
   OfficerProfile,
   CriminalCase,
-  ActiveTabType
+  ActiveTabType,
+  ServiceRoleItem,
+  ReportRecord
 } from '../types';
+import { INITIAL_SERVICE_ROLES } from '../data/initialData';
 import { OfficialEmblem } from './OfficialEmblem';
 import { OfficerPhoto } from './OfficerPhoto';
 import {
@@ -46,7 +49,10 @@ import {
   BadgeCheck,
   ShieldAlert,
   ArrowRight,
-  GraduationCap
+  GraduationCap,
+  FileCheck2,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import {
   QUALIFICATION_QUESTIONS,
@@ -60,10 +66,14 @@ interface ChairmanAdminViewProps {
   accounts: UserAccount[];
   orders: ChairmanOrder[];
   cases: CriminalCase[];
+  serviceRoles?: ServiceRoleItem[];
+  reports?: ReportRecord[];
   currentOfficer: OfficerProfile;
   onUpdateDepartments: (departments: DepartmentItem[]) => void;
   onUpdateAccounts: (accounts: UserAccount[]) => void;
   onUpdateOrders: (orders: ChairmanOrder[]) => void;
+  onUpdateServiceRoles?: (roles: ServiceRoleItem[]) => void;
+  onUpdateReport?: (report: ReportRecord) => void;
   onSwitchOfficer: (account: UserAccount) => void;
   onNavigate: (tab: ActiveTabType) => void;
   onShowToast: (msg: string) => void;
@@ -89,16 +99,23 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
   accounts,
   orders,
   cases,
+  serviceRoles,
+  reports = [],
   currentOfficer,
   onUpdateDepartments,
   onUpdateAccounts,
   onUpdateOrders,
+  onUpdateServiceRoles,
+  onUpdateReport,
   onSwitchOfficer,
   onNavigate,
   onShowToast,
   onClose
 }) => {
-  const [activeAdminTab, setActiveAdminTab] = useState<'accounts' | 'departments' | 'orders' | 'exams' | 'overview'>('accounts');
+  const [activeAdminTab, setActiveAdminTab] = useState<'accounts' | 'departments' | 'orders' | 'roles' | 'reports' | 'exams' | 'overview'>('accounts');
+  const serviceRolesList = serviceRoles && serviceRoles.length > 0 ? serviceRoles : INITIAL_SERVICE_ROLES;
+  const reportsList = reports;
+  const pendingReports = reportsList.filter((r) => r.status === 'submitted');
 
   // Exam Submissions state
   const [examSubmissions, setExamSubmissions] = useState<ExamSubmission[]>(() => getExamSubmissions());
@@ -207,6 +224,77 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
 
   const [visiblePasswords, setVisiblePasswords] = useState<{ [id: string]: boolean }>({});
 
+  // Role Management State
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<ServiceRoleItem | null>(null);
+  const [roleForm, setRoleForm] = useState<{
+    title: string;
+    accessRole: 'admin' | 'head' | 'investigator' | 'forensic' | 'operative';
+    badgeColor: 'red' | 'blue' | 'purple' | 'amber' | 'emerald' | 'cyan' | 'slate';
+    description: string;
+  }>({
+    title: '',
+    accessRole: 'investigator',
+    badgeColor: 'blue',
+    description: ''
+  });
+
+  const handleOpenCreateRole = () => {
+    setEditingRole(null);
+    setRoleForm({
+      title: '',
+      accessRole: 'investigator',
+      badgeColor: 'blue',
+      description: ''
+    });
+    setIsRoleModalOpen(true);
+  };
+
+  const handleOpenEditRole = (roleItem: ServiceRoleItem) => {
+    setEditingRole(roleItem);
+    setRoleForm({
+      title: roleItem.title,
+      accessRole: roleItem.accessRole,
+      badgeColor: roleItem.badgeColor || 'blue',
+      description: roleItem.description || ''
+    });
+    setIsRoleModalOpen(true);
+  };
+
+  const handleSaveRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roleForm.title.trim()) {
+      onShowToast('Введите наименование служебной роли');
+      return;
+    }
+
+    if (editingRole) {
+      const updated = serviceRolesList.map((r) =>
+        r.id === editingRole.id ? { ...r, ...roleForm } : r
+      );
+      if (onUpdateServiceRoles) onUpdateServiceRoles(updated);
+      onShowToast(`Служебная роль «${roleForm.title}» обновлена`);
+    } else {
+      const newRole: ServiceRoleItem = {
+        id: `role-${Date.now()}`,
+        title: roleForm.title.trim(),
+        accessRole: roleForm.accessRole,
+        badgeColor: roleForm.badgeColor,
+        description: roleForm.description.trim(),
+        isSystem: false
+      };
+      if (onUpdateServiceRoles) onUpdateServiceRoles([...serviceRolesList, newRole]);
+      onShowToast(`Новая служебная роль «${newRole.title}» успешно создана`);
+    }
+    setIsRoleModalOpen(false);
+  };
+
+  const handleDeleteRole = (roleItem: ServiceRoleItem) => {
+    const updated = serviceRolesList.filter((r) => r.id !== roleItem.id);
+    if (onUpdateServiceRoles) onUpdateServiceRoles(updated);
+    onShowToast(`Служебная роль «${roleItem.title}» удалена`);
+  };
+
   // Form State: User Account
   const [accForm, setAccForm] = useState({
     username: '',
@@ -214,6 +302,7 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
     fullName: '',
     rank: 'Старший лейтенант юстиции' as RankType,
     position: 'Следователь по особо важным делам',
+    serviceRoleTitle: 'Следователь по ОВД',
     departmentId: departments[0]?.id || 'dept-orovd',
     badgeNumber: '',
     serviceId: '',
@@ -268,7 +357,8 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
       password: String(Math.floor(1000 + Math.random() * 9000)),
       fullName: '',
       rank: 'Старший лейтенант юстиции',
-      position: 'Следователь следственного отдела',
+      position: 'Следователь по ОВД',
+      serviceRoleTitle: 'Следователь по ОВД',
       departmentId: departments[0]?.id || '',
       badgeNumber: `СК-77-${randNum}`,
       serviceId: `ID-${randNum}`,
@@ -294,6 +384,7 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
       fullName: acc.fullName,
       rank: acc.rank,
       position: acc.position,
+      serviceRoleTitle: acc.serviceRoleTitle || acc.position || 'Следователь по ОВД',
       departmentId: acc.departmentId,
       badgeNumber: acc.badgeNumber,
       serviceId: acc.serviceId,
@@ -648,6 +739,8 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
         <div className="flex flex-wrap gap-1.5">
           {[
             { id: 'accounts', label: 'Управление учетными записями', icon: Users, count: accounts.length },
+            { id: 'roles', label: 'Служебные роли и профили', icon: Briefcase, count: serviceRolesList.length },
+            { id: 'reports', label: 'Рапорты личного состава', icon: FileCheck2, count: pendingReports.length },
             { id: 'departments', label: 'Следственные отделы и управления', icon: Building2, count: departments.length },
             { id: 'orders', label: 'Приказы Председателя СК', icon: FileSignature, count: orders.length },
             { id: 'exams', label: 'Аттестация и экзамены мл. лейтенантов', icon: GraduationCap, count: examSubmissions.filter(s => s.status === 'pending').length },
@@ -922,6 +1015,276 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB: SERVICE ROLES & PROFILES ================= */}
+      {activeAdminTab === 'roles' && (
+        <div className="space-y-6">
+          {/* Header Bar */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
+                <Briefcase className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Реестр служебных ролей и профилей СК РФ</h3>
+                <p className="text-xs text-slate-500">
+                  Должностные профили, системные привилегии и служебные ранги сотрудников ведомства
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleOpenCreateRole}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#85181b] hover:bg-[#6b1316] text-white font-bold text-xs shadow-md transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Создать новую служебную роль</span>
+            </button>
+          </div>
+
+          {/* Roles Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {serviceRolesList.map((roleItem) => {
+              const assignedAccounts = accounts.filter(
+                (a) => a.serviceRoleTitle === roleItem.title || a.position === roleItem.title
+              );
+
+              // Color badge helper
+              const colorClasses = {
+                red: 'bg-red-50 text-red-700 border-red-200',
+                blue: 'bg-blue-50 text-blue-700 border-blue-200',
+                purple: 'bg-purple-50 text-purple-700 border-purple-200',
+                amber: 'bg-amber-50 text-amber-700 border-amber-200',
+                emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                cyan: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+                slate: 'bg-slate-50 text-slate-700 border-slate-200'
+              }[roleItem.badgeColor || 'blue'] || 'bg-blue-50 text-blue-700 border-blue-200';
+
+              const roleAccessLabels: Record<string, string> = {
+                admin: 'Высшее руководство / Администратор',
+                head: 'Руководитель подразделения',
+                investigator: 'Следователь юстиции',
+                forensic: 'Следователь-криминалист',
+                operative: 'Оперативный сотрудник'
+              };
+
+              return (
+                <div
+                  key={roleItem.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${colorClasses}`}>
+                        {roleItem.title}
+                      </span>
+                      {roleItem.isSystem ? (
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded-md">
+                          Штатная
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          Пользовательская
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Доступ: {roleAccessLabels[roleItem.accessRole] || roleItem.accessRole}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                        {roleItem.description || 'Штатный процессуальный профиль сотрудника Следственного комитета РФ.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div className="text-xs text-slate-600">
+                      В штате: <span className="font-bold text-slate-900">{assignedAccounts.length} сотр.</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEditRole(roleItem)}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                        title="Редактировать роль"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      {!roleItem.isSystem && (
+                        <button
+                          onClick={() => handleDeleteRole(roleItem)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition cursor-pointer"
+                          title="Удалить роль"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB: REPORTS APPROVAL ================= */}
+      {activeAdminTab === 'reports' && (
+        <div className="space-y-5">
+          {/* Header Bar */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-red-50 text-[#85181b] border border-red-200">
+                <FileCheck2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Рапорты личного состава на согласовании</h3>
+                <p className="text-xs text-slate-500">
+                  Утверждение рапортов о проделанной работе, стажировках мл. лейтенантов и повышении в звании
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold px-3.5 py-1.5 rounded-xl bg-amber-50 text-amber-850 border border-amber-200">
+                Ожидают решения: <b>{pendingReports.length}</b> рапортов
+              </span>
+            </div>
+          </div>
+
+          {/* Reports List */}
+          <div className="space-y-4">
+            {reportsList.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+                Рапортов в системе пока нет
+              </div>
+            ) : (
+              reportsList.map((rep) => {
+                const isPending = rep.status === 'submitted';
+                const isApproved = rep.status === 'approved';
+                const isRejected = rep.status === 'rejected';
+
+                return (
+                  <div
+                    key={rep.id}
+                    className={`bg-white rounded-2xl border p-5 shadow-sm space-y-4 transition ${
+                      isPending
+                        ? 'border-amber-400/80 ring-2 ring-amber-400/10'
+                        : isApproved
+                        ? 'border-emerald-200 bg-emerald-50/10'
+                        : 'border-slate-200'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-[#85181b] bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                            {rep.reportNumber}
+                          </span>
+                          <span className="text-xs text-slate-400 font-mono">{rep.date}</span>
+                          {rep.type === 'junior_internship' && (
+                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold text-[10px] border border-blue-200">
+                              СТАЖИРОВКА МЛ. ЛЕЙТЕНАНТА
+                            </span>
+                          )}
+                          {rep.type === 'promotion' && (
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
+                              НА ПОВЫШЕНИЕ
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-sm sm:text-base font-bold text-slate-900">{rep.title}</h4>
+                        <div className="text-xs text-slate-600">
+                          Автор: <span className="font-semibold text-slate-800">{rep.authorRank} {rep.authorName}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isApproved ? (
+                          <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Утвержден Председателем
+                          </span>
+                        ) : isRejected ? (
+                          <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5" /> Отклонен
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-amber-700" /> На рассмотрении
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Summary narrative */}
+                    <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100 whitespace-pre-wrap">
+                      {rep.summary}
+                    </div>
+
+                    {/* Actions and Points */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex flex-wrap items-center gap-4 text-slate-500">
+                        <span>Начислено баллов: <b className="text-slate-800 font-mono">+{rep.pointsCalculated}</b></span>
+                        {rep.juniorOfficerName && (
+                          <span>Стажер: <b className="text-blue-700">{rep.juniorOfficerName}</b></span>
+                        )}
+                      </div>
+
+                      {/* Approval Buttons */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const updated: ReportRecord = {
+                              ...rep,
+                              status: 'approved',
+                              reviewedBy: 'Чернов Денис Максимович, Генерал юстиции РФ',
+                              reviewedAt: new Date().toLocaleDateString('ru-RU'),
+                              reviewerComment: 'Рапорт проверен, следственные показатели и решение согласованы в полном объеме.'
+                            };
+                            if (onUpdateReport) onUpdateReport(updated);
+                            onShowToast(`Рапорт № ${rep.reportNumber} утвержден!`);
+                          }}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Утвердить</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            const updated: ReportRecord = {
+                              ...rep,
+                              status: 'rejected',
+                              reviewedBy: 'Чернов Денис Максимович, Генерал юстиции РФ',
+                              reviewedAt: new Date().toLocaleDateString('ru-RU'),
+                              reviewerComment: 'Отклонено Председателем. Требуется исправление недостатков.'
+                            };
+                            if (onUpdateReport) onUpdateReport(updated);
+                            onShowToast(`Рапорт № ${rep.reportNumber} отклонен.`);
+                          }}
+                          className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition cursor-pointer flex items-center gap-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Отклонить</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {rep.reviewerComment && (
+                      <div className="text-xs p-3 rounded-xl bg-slate-100 text-slate-700 border border-slate-200">
+                        <b>Резолюция Председателя:</b> {rep.reviewerComment}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -1403,29 +1766,55 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Должность</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">Служебная роль / профиль *</label>
+                    <button
+                      type="button"
+                      onClick={handleOpenCreateRole}
+                      className="text-[11px] font-bold text-[#85181b] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Создать роль</span>
+                    </button>
+                  </div>
+                  <select
+                    value={accForm.serviceRoleTitle || accForm.position}
+                    onChange={(e) => {
+                      const selectedRole = serviceRolesList.find((r) => r.title === e.target.value);
+                      if (selectedRole) {
+                        setAccForm({
+                          ...accForm,
+                          serviceRoleTitle: selectedRole.title,
+                          role: selectedRole.accessRole,
+                          position: selectedRole.title
+                        });
+                      } else {
+                        setAccForm({
+                          ...accForm,
+                          serviceRoleTitle: e.target.value,
+                          position: e.target.value
+                        });
+                      }
+                    }}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#85181b] font-medium"
+                  >
+                    {serviceRolesList.map((r) => (
+                      <option key={r.id} value={r.title}>
+                        {r.title} ({r.accessRole === 'admin' ? 'Руководство' : r.accessRole === 'head' ? 'Начальник' : r.accessRole === 'forensic' ? 'Криминалистика' : r.accessRole === 'operative' ? 'Кадры / УСБ' : 'Следствие'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Штатная должность (в удостоверении)</label>
                   <input
                     type="text"
                     value={accForm.position}
                     onChange={(e) => setAccForm({ ...accForm, position: e.target.value })}
-                    placeholder="Старший следователь по ОВД"
+                    placeholder="Следователь по ОВД"
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#85181b]"
                   />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Служебная роль / профиль</label>
-                  <select
-                    value={accForm.role}
-                    onChange={(e) => setAccForm({ ...accForm, role: e.target.value as any })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#85181b]"
-                  >
-                    <option value="investigator">Следователь по ОВД</option>
-                    <option value="forensic">Следователь-криминалист</option>
-                    <option value="head">Руководитель следственного отдела</option>
-                    <option value="operative">Оперативный сотрудник / УСБ</option>
-                    <option value="admin">Председатель СК РФ / Администратор</option>
-                  </select>
                 </div>
 
                 <div className="space-y-1">
@@ -2153,6 +2542,107 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: CREATE / EDIT SERVICE ROLE ================= */}
+      {isRoleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full shadow-2xl p-6 sm:p-7 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
+                  <Briefcase className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {editingRole ? 'Редактирование служебной роли' : 'Создание служебной роли / профиля'}
+                  </h3>
+                  <p className="text-xs text-slate-500">Штатный реестр Следственного комитета РФ</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsRoleModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRole} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">Наименование служебной роли / должности *</label>
+                <input
+                  type="text"
+                  required
+                  value={roleForm.title}
+                  onChange={(e) => setRoleForm({ ...roleForm, title: e.target.value })}
+                  placeholder="например: Военный следователь"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#85181b] font-medium"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">Уровень системного доступа / прав *</label>
+                <select
+                  value={roleForm.accessRole}
+                  onChange={(e) => setRoleForm({ ...roleForm, accessRole: e.target.value as any })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#85181b]"
+                >
+                  <option value="investigator">Следователь юстиции (Дела, фигуранты, протоколы, рапорты)</option>
+                  <option value="head">Руководитель отдела (Утверждение дел и рапортов)</option>
+                  <option value="forensic">Следователь-криминалист (Экспертизы, осмотры, досье)</option>
+                  <option value="operative">Кадры / УСБ / Оперативник (Кадровый учет, проверки)</option>
+                  <option value="admin">Высшее руководство / Председатель СК (Полный доступ)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">Цвет служебной маркировки (Бейдж)</label>
+                <select
+                  value={roleForm.badgeColor}
+                  onChange={(e) => setRoleForm({ ...roleForm, badgeColor: e.target.value as any })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#85181b]"
+                >
+                  <option value="red">🔴 Красный (Руководство / Председатель)</option>
+                  <option value="purple">🟣 Фиолетовый (Руководители отделов / СПБ)</option>
+                  <option value="blue">🔵 Синий (Следователи / ОВД)</option>
+                  <option value="emerald">🟢 Зеленый (Военные следователи)</option>
+                  <option value="amber">🟡 Золотой / Желтый (Отдел кадров)</option>
+                  <option value="cyan">🔷 Голубой (Криминалистика)</option>
+                  <option value="slate">⚪ Серый (Помощники / Стажеры)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">Описание служебных обязанностей</label>
+                <textarea
+                  rows={2}
+                  value={roleForm.description}
+                  onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
+                  placeholder="Краткое описание полномочий и задач..."
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#85181b]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsRoleModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-[#85181b] hover:bg-[#6b1316] text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>{editingRole ? 'Сохранить изменения' : 'Создать служебную роль'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

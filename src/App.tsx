@@ -11,7 +11,8 @@ import {
   DepartmentItem,
   UserAccount,
   ChairmanOrder,
-  UserRoleType
+  UserRoleType,
+  ServiceRoleItem
 } from './types';
 import {
   getOfficerProfile,
@@ -33,6 +34,8 @@ import {
   saveAccounts,
   getOrders,
   saveOrders,
+  getServiceRoles,
+  saveServiceRoles,
   exportFullBackup,
   importFullBackup,
   resetToInitialSeedData,
@@ -55,11 +58,19 @@ import { RPBinderView } from './components/RPBinderView';
 import { JuniorExamView } from './components/JuniorExamView';
 import { SearchModal } from './components/SearchModal';
 import { DataManagementModal } from './components/DataManagementModal';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { CheckCircle2, ShieldAlert, Lock, ArrowRight, Home as HomeIcon } from 'lucide-react';
 
 export function App() {
-  // Navigation State - 'home' is the default starting screen
-  const [activeTab, setActiveTab] = useState<ActiveTabType>('home');
+  // Navigation State - restored from localStorage or default 'home'
+  const [activeTab, setActiveTab] = useState<ActiveTabType>(() => {
+    try {
+      const saved = localStorage.getItem('sk_rf_active_tab') as ActiveTabType;
+      return saved || 'home';
+    } catch {
+      return 'home';
+    }
+  });
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [selectedOffenderId, setSelectedOffenderId] = useState<string | null>(null);
 
@@ -74,22 +85,46 @@ export function App() {
   const [departments, setDepartments] = useState<DepartmentItem[]>(getDepartments);
   const [accounts, setAccounts] = useState<UserAccount[]>(getAccounts);
   const [orders, setOrders] = useState<ChairmanOrder[]>(getOrders);
+  const [serviceRoles, setServiceRoles] = useState<ServiceRoleItem[]>(getServiceRoles);
 
   // Authentication & RBAC State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    // Initial check: if officer is set up as real staff member
-    return Boolean(officer.fullName && officer.rank);
+    try {
+      const saved = localStorage.getItem('sk_rf_is_authenticated');
+      if (saved !== null) return saved === 'true';
+      return Boolean(officer.fullName && officer.rank);
+    } catch {
+      return true;
+    }
   });
+
   const [userRole, setUserRole] = useState<UserRoleType>(() => {
-    if (officer.fullName.includes('Чернов') || officer.rank === 'Генерал юстиции РФ') {
+    try {
+      const saved = localStorage.getItem('sk_rf_user_role') as UserRoleType;
+      if (saved && saved !== 'guest') return saved;
+      if (officer.fullName.includes('Чернов') || officer.rank === 'Генерал юстиции РФ') {
+        return 'admin';
+      }
+      return 'investigator';
+    } catch {
       return 'admin';
     }
-    return 'investigator';
   });
+
+  const handleNavigateTab = (tab: ActiveTabType) => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem('sk_rf_active_tab', tab);
+    } catch {
+      // Ignore
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Modal States
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
   // Toast Notification State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -127,9 +162,15 @@ export function App() {
         if (db.departments) setDepartments(db.departments);
         if (db.accounts) setAccounts(db.accounts);
         if (db.orders) setOrders(db.orders);
+        if (db.serviceRoles) setServiceRoles(db.serviceRoles);
       }
     });
   }, []);
+
+  const handleUpdateServiceRoles = (roles: ServiceRoleItem[]) => {
+    setServiceRoles(roles);
+    saveServiceRoles(roles);
+  };
 
   // Sync state changes to storage
   const handleUpdateOfficer = (updated: OfficerProfile) => {
@@ -162,6 +203,7 @@ export function App() {
 
   // Switch officer from user account
   const handleSwitchOfficer = (account: UserAccount) => {
+    const role: UserRoleType = account.role || (account.username === 'chernov_d' || account.fullName.includes('Чернов') ? 'admin' : 'investigator');
     const updated: OfficerProfile = {
       ...officer,
       rank: account.rank,
@@ -180,14 +222,28 @@ export function App() {
     setOfficer(updated);
     saveOfficerProfile(updated);
     setIsAuthenticated(true);
-    setUserRole(account.role || (account.username === 'chernov_d' ? 'admin' : 'investigator'));
+    setUserRole(role);
+    try {
+      localStorage.setItem('sk_rf_is_authenticated', 'true');
+      localStorage.setItem('sk_rf_user_role', role);
+      localStorage.setItem('sk_rf_active_username', account.username);
+    } catch {
+      // Ignore
+    }
   };
 
   // Logout Handler
   const handleLogout = () => {
     setIsAuthenticated(false);
     setUserRole('guest');
-    setActiveTab('home');
+    handleNavigateTab('home');
+    try {
+      localStorage.setItem('sk_rf_is_authenticated', 'false');
+      localStorage.setItem('sk_rf_user_role', 'guest');
+      localStorage.setItem('sk_rf_active_tab', 'home');
+    } catch {
+      // Ignore
+    }
     showToast('Вы вышли из служебной учетной записи');
   };
 
@@ -380,6 +436,7 @@ export function App() {
           onUpdateOfficer={handleUpdateOfficer}
           onOpenSearch={() => setIsSearchModalOpen(true)}
           onOpenDataModal={() => setIsDataModalOpen(true)}
+          onOpenChangePassword={() => setIsChangePasswordModalOpen(true)}
           onNavigateHome={() => {
             setActiveTab('home');
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -398,10 +455,7 @@ export function App() {
           userRole={userRole}
           officerRank={officer.rank}
           isAuthenticated={isAuthenticated}
-          onTabChange={(tab) => {
-            setActiveTab(tab);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
+          onTabChange={handleNavigateTab}
           wantedCount={wantedCount}
           activeCasesCount={activeCasesCount}
           reportsCount={reports.length}
@@ -429,20 +483,14 @@ export function App() {
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
-                  onClick={() => {
-                    setActiveTab('home');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
+                  onClick={() => handleNavigateTab('home')}
                   className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#85181b] hover:bg-[#6b1316] text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Lock className="w-4 h-4" />
                   <span>Перейти на главную для авторизации</span>
                 </button>
                 <button
-                  onClick={() => {
-                    setActiveTab('home');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
+                  onClick={() => handleNavigateTab('home')}
                   className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs border border-slate-300 transition cursor-pointer flex items-center justify-center gap-2"
                 >
                   <HomeIcon className="w-4 h-4" />
@@ -462,8 +510,7 @@ export function App() {
                   onUpdateOfficer={handleUpdateOfficer}
                   onSwitchOfficer={handleSwitchOfficer}
                   onLogin={(targetTab = 'dashboard') => {
-                    setActiveTab(targetTab);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    handleNavigateTab(targetTab);
                   }}
                   offenders={offenders}
                   cases={cases}
@@ -477,15 +524,16 @@ export function App() {
                   accounts={accounts}
                   orders={orders}
                   cases={cases}
+                  serviceRoles={serviceRoles}
+                  reports={reports}
                   currentOfficer={officer}
                   onUpdateDepartments={handleUpdateDepartments}
                   onUpdateAccounts={handleUpdateAccounts}
                   onUpdateOrders={handleUpdateOrders}
+                  onUpdateServiceRoles={handleUpdateServiceRoles}
+                  onUpdateReport={handleUpdateReport}
                   onSwitchOfficer={handleSwitchOfficer}
-                  onNavigate={(tab) => {
-                    setActiveTab(tab);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
+                  onNavigate={handleNavigateTab}
                   onShowToast={showToast}
                 />
               )}
@@ -496,35 +544,26 @@ export function App() {
                   offenders={offenders}
                   cases={cases}
                   reports={reports}
-                  onNavigate={(tab) => {
-                    setActiveTab(tab);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
+                  onNavigate={handleNavigateTab}
                   onSelectCase={(caseItem) => {
                     setSelectedCaseId(caseItem.id);
-                    setActiveTab('cases');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    handleNavigateTab('cases');
                   }}
                   onSelectOffender={(offender) => {
                     setSelectedOffenderId(offender.id);
-                    setActiveTab('offenders');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    handleNavigateTab('offenders');
                   }}
                   onQuickNewCase={() => {
-                    setActiveTab('cases');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    handleNavigateTab('cases');
                   }}
                   onQuickNewOffender={() => {
-                    setActiveTab('offenders');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    handleNavigateTab('offenders');
                   }}
                   onQuickNewDoc={() => {
-                    setActiveTab('documents');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    handleNavigateTab('documents');
                   }}
                   onQuickNewReport={() => {
-                    setActiveTab('reports');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    handleNavigateTab('reports');
                   }}
                 />
               )}
@@ -574,9 +613,12 @@ export function App() {
                   officer={officer}
                   cases={cases}
                   accounts={accounts}
+                  userRole={userRole}
+                  isAdmin={userRole === 'admin' || officer.fullName.includes('Чернов') || officer.rank === 'Генерал юстиции РФ'}
                   onAddReport={handleAddReport}
                   onUpdateReport={handleUpdateReport}
                   onDeleteReport={handleDeleteReport}
+                  onUpdateAccounts={handleUpdateAccounts}
                   onShowToast={showToast}
                 />
               )}
@@ -593,6 +635,7 @@ export function App() {
                   accounts={accounts}
                   departments={departments}
                   onUpdateOfficer={handleUpdateOfficer}
+                  onUpdateAccounts={handleUpdateAccounts}
                   onSwitchOfficer={handleSwitchOfficer}
                   onShowToast={showToast}
                 />
@@ -670,6 +713,16 @@ export function App() {
         casesCount={cases.length}
         reportsCount={reports.length}
         documentsCount={documents.length}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordModalOpen}
+        onClose={() => setIsChangePasswordModalOpen(false)}
+        currentOfficer={officer}
+        accounts={accounts}
+        onUpdateAccounts={handleUpdateAccounts}
+        onShowToast={showToast}
       />
 
       {/* Footer */}

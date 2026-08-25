@@ -8,7 +8,8 @@ import {
   RPBinderEntry,
   DepartmentItem,
   UserAccount,
-  ChairmanOrder
+  ChairmanOrder,
+  ServiceRoleItem
 } from '../types';
 import {
   INITIAL_OFFICER,
@@ -20,7 +21,8 @@ import {
   INITIAL_BINDS,
   INITIAL_DEPARTMENTS,
   INITIAL_ACCOUNTS,
-  INITIAL_ORDERS
+  INITIAL_ORDERS,
+  INITIAL_SERVICE_ROLES
 } from '../data/initialData';
 import { getExamSubmissions, saveExamSubmissions, ExamSubmission } from '../data/examQuestions';
 
@@ -35,6 +37,7 @@ export const KEYS = {
   DEPARTMENTS: 'sk_rf_departments_db_v1',
   ACCOUNTS: 'sk_rf_accounts_db_v1',
   ORDERS: 'sk_rf_orders_db_v1',
+  SERVICE_ROLES: 'sk_rf_service_roles_db_v1',
   EXAM_SUBMISSIONS: 'sk_rf_exam_submissions_v1',
   CLEARED_FLAG: 'sk_rf_cleared_empty_v1',
   LAST_SYNC: 'sk_rf_last_db_sync_time'
@@ -78,6 +81,7 @@ export async function syncDatabaseToServer(overrideData?: any) {
       departments: getDepartments(),
       accounts: getAccounts(),
       orders: getOrders(),
+      serviceRoles: getServiceRoles(),
       examSubmissions: getExamSubmissions()
     };
 
@@ -114,6 +118,7 @@ export async function fetchDatabaseFromServer() {
       if (d.departments) localStorage.setItem(KEYS.DEPARTMENTS, JSON.stringify(d.departments));
       if (d.accounts) localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(d.accounts));
       if (d.orders) localStorage.setItem(KEYS.ORDERS, JSON.stringify(d.orders));
+      if (d.serviceRoles) localStorage.setItem(KEYS.SERVICE_ROLES, JSON.stringify(d.serviceRoles));
       if (d.examSubmissions) localStorage.setItem(KEYS.EXAM_SUBMISSIONS, JSON.stringify(d.examSubmissions));
       localStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
       return d;
@@ -204,6 +209,24 @@ export function saveOrders(orders: ChairmanOrder[]) {
     queueDatabaseSync();
   } catch (err) {
     console.error('Failed to save orders:', err);
+  }
+}
+
+export function getServiceRoles(): ServiceRoleItem[] {
+  try {
+    const raw = localStorage.getItem(KEYS.SERVICE_ROLES);
+    return raw ? JSON.parse(raw) : INITIAL_SERVICE_ROLES;
+  } catch {
+    return INITIAL_SERVICE_ROLES;
+  }
+}
+
+export function saveServiceRoles(roles: ServiceRoleItem[]) {
+  try {
+    localStorage.setItem(KEYS.SERVICE_ROLES, JSON.stringify(roles));
+    queueDatabaseSync();
+  } catch (err) {
+    console.error('Failed to save service roles:', err);
   }
 }
 
@@ -331,6 +354,7 @@ export function exportFullBackup(): string {
     departments: getDepartments(),
     accounts: getAccounts(),
     orders: getOrders(),
+    serviceRoles: getServiceRoles(),
     examSubmissions: getExamSubmissions()
   };
   return JSON.stringify(data, null, 2);
@@ -349,6 +373,7 @@ export function importFullBackup(jsonString: string): boolean {
     if (parsed.departments) saveDepartments(parsed.departments);
     if (parsed.accounts) saveAccounts(parsed.accounts);
     if (parsed.orders) saveOrders(parsed.orders);
+    if (parsed.serviceRoles) saveServiceRoles(parsed.serviceRoles);
     if (parsed.examSubmissions) saveExamSubmissions(parsed.examSubmissions);
     queueDatabaseSync();
     return true;
@@ -381,6 +406,7 @@ export function resetToInitialSeedData() {
   localStorage.removeItem(KEYS.DEPARTMENTS);
   localStorage.removeItem(KEYS.ACCOUNTS);
   localStorage.removeItem(KEYS.ORDERS);
+  localStorage.removeItem(KEYS.SERVICE_ROLES);
   localStorage.removeItem(KEYS.EXAM_SUBMISSIONS);
   queueDatabaseSync();
 }

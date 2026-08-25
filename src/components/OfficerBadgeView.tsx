@@ -22,10 +22,12 @@ import {
   Camera,
   Upload,
   Image as ImageIcon,
-  Link as LinkIcon
+  Link as LinkIcon,
+  KeyRound
 } from 'lucide-react';
 import { OfficialEmblem, OfficialStampSeal } from './OfficialEmblem';
 import { OfficerPhoto } from './OfficerPhoto';
+import { ChangePasswordModal } from './ChangePasswordModal';
 import { saveAccounts } from '../utils/storage';
 
 interface OfficerBadgeViewProps {
@@ -35,6 +37,7 @@ interface OfficerBadgeViewProps {
   accounts?: UserAccount[];
   departments?: DepartmentItem[];
   onUpdateOfficer: (officer: OfficerProfile) => void;
+  onUpdateAccounts?: (accounts: UserAccount[]) => void;
   onSwitchOfficer?: (account: UserAccount) => void;
   onShowToast: (msg: string) => void;
 }
@@ -46,6 +49,7 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
   accounts = [],
   departments = [],
   onUpdateOfficer,
+  onUpdateAccounts,
   onSwitchOfficer,
   onShowToast
 }) => {
@@ -53,6 +57,7 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isCopiedRP, setIsCopiedRP] = useState(false);
   const [isFullscreenModal, setIsFullscreenModal] = useState(false);
+  const [isChangePassModalOpen, setIsChangePassModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'badge' | 'file' | 'weapons'>('badge');
 
   // Photo customization modal state
@@ -249,6 +254,16 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
           >
             <Printer className="w-4 h-4 text-slate-600" />
             <span className="hidden sm:inline">Печать</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsChangePassModalOpen(true)}
+            className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-300/80 font-bold text-xs transition cursor-pointer shadow-sm"
+            title="Сменить служебный пароль учетной записи"
+          >
+            <KeyRound className="w-4 h-4 text-amber-700" />
+            <span className="hidden sm:inline">Сменить пароль</span>
           </button>
 
           {/* EDIT BUTTON: Accessible only to Chairman */}
@@ -1299,6 +1314,16 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePassModalOpen}
+        onClose={() => setIsChangePassModalOpen(false)}
+        currentOfficer={officer}
+        accounts={accounts}
+        onUpdateAccounts={onUpdateAccounts}
+        onShowToast={onShowToast}
+      />
 
     </div>
   );

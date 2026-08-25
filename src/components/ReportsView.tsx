@@ -28,9 +28,12 @@ interface ReportsViewProps {
   officer: OfficerProfile;
   cases: CriminalCase[];
   accounts?: UserAccount[];
+  userRole?: string;
+  isAdmin?: boolean;
   onAddReport: (report: ReportRecord) => void;
   onUpdateReport: (report: ReportRecord) => void;
   onDeleteReport: (id: string) => void;
+  onUpdateAccounts?: (accounts: UserAccount[]) => void;
   onShowToast: (msg: string) => void;
 }
 
@@ -39,12 +42,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   officer,
   cases,
   accounts,
+  userRole,
+  isAdmin,
   onAddReport,
   onUpdateReport,
   onDeleteReport,
+  onUpdateAccounts,
   onShowToast
 }) => {
+  const isChairman = officer.fullName.includes('Чернов') || officer.rank === 'Генерал юстиции РФ' || isAdmin || userRole === 'admin';
   const [selectedReport, setSelectedReport] = useState<ReportRecord | null>(reports[0] || null);
+  const [chairmanComment, setChairmanComment] = useState('');
   const [isNewReportModalOpen, setIsNewReportModalOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
@@ -235,10 +243,63 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     onShowToast(`Рапорт «${fullReport.reportNumber}» успешно зарегистрирован!`);
   };
 
-  const handleCopyBBCode = (rep: ReportRecord) => {
-    const bb = reportToBBCode(rep);
-    navigator.clipboard.writeText(bb);
-    onShowToast('BB-код рапорта скопирован для форума фракции!');
+  const handleApproveReport = (report: ReportRecord) => {
+    const updated: ReportRecord = {
+      ...report,
+      status: 'approved',
+      reviewedBy: 'Чернов Денис Максимович, Генерал юстиции РФ',
+      reviewedAt: new Date().toLocaleDateString('ru-RU'),
+      reviewerComment: chairmanComment.trim() || 'Рапорт проверен, следственные действия и показатели утверждены в полном объеме.'
+    };
+    onUpdateReport(updated);
+    setSelectedReport(updated);
+
+    // If it's junior internship report with recommendation to promote, promote account!
+    if (report.type === 'junior_internship' && report.juniorOfficerName && accounts && onUpdateAccounts) {
+      const updatedAccounts = accounts.map((acc) => {
+        if (
+          acc.fullName.toLowerCase() === report.juniorOfficerName?.toLowerCase() ||
+          (report.juniorOfficerBadge && acc.badgeNumber === report.juniorOfficerBadge)
+        ) {
+          return {
+            ...acc,
+            rank: 'Лейтенант юстиции' as const
+          };
+        }
+        return acc;
+      });
+      onUpdateAccounts(updatedAccounts);
+    }
+
+    onShowToast(`Рапорт № ${report.reportNumber} успешно утвержден Председателем СК РФ!`);
+    setChairmanComment('');
+  };
+
+  const handleRejectReport = (report: ReportRecord) => {
+    const updated: ReportRecord = {
+      ...report,
+      status: 'rejected',
+      reviewedBy: 'Чернов Денис Максимович, Генерал юстиции РФ',
+      reviewedAt: new Date().toLocaleDateString('ru-RU'),
+      reviewerComment: chairmanComment.trim() || 'Рапорт отклонен. Требуется устранение процессуальных замечаний и повторное направление.'
+    };
+    onUpdateReport(updated);
+    setSelectedReport(updated);
+    onShowToast(`Рапорт № ${report.reportNumber} отклонен и отправлен на доработку.`);
+    setChairmanComment('');
+  };
+
+  const handleResetReportStatus = (report: ReportRecord) => {
+    const updated: ReportRecord = {
+      ...report,
+      status: 'submitted',
+      reviewedBy: undefined,
+      reviewedAt: undefined,
+      reviewerComment: undefined
+    };
+    onUpdateReport(updated);
+    setSelectedReport(updated);
+    onShowToast(`Статус рапорта № ${report.reportNumber} изменен на «На рассмотрении».`);
   };
 
   const getStatusBadge = (status: ReportRecord['status']) => {
@@ -543,6 +604,106 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <div className="font-mono text-slate-300">
                     Подписал: {selectedReport.authorRank} {selectedReport.authorName}
                   </div>
+                </div>
+
+                {/* Chairman / Leadership Approval Section */}
+                <div className="pt-4 border-t border-slate-800 space-y-4">
+                  {/* Status Banner */}
+                  {selectedReport.status === 'approved' && (
+                    <div className="p-4 bg-emerald-950/40 border-2 border-emerald-500/60 rounded-xl space-y-2 relative overflow-hidden shadow-inner">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                          <span>РАПОРТ УТВЕРЖДЕН • РЕЗОЛЮЦИЯ ПРЕДСЕДАТЕЛЯ СК РФ</span>
+                        </div>
+                        <span className="font-mono text-[10px] text-emerald-300 font-bold bg-emerald-900/60 px-2.5 py-0.5 rounded border border-emerald-500/30">
+                          {selectedReport.reviewedAt || selectedReport.date}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-200 pl-7">
+                        <b>Резолюция руководителя:</b> «{selectedReport.reviewerComment || 'Рапорт проверен, следственные действия и показатели утверждены в полном объеме.'}»
+                      </div>
+                      <div className="text-[11px] text-slate-400 pl-7 font-mono">
+                        Утвердил: {selectedReport.reviewedBy || 'Чернов Денис Максимович, Генерал юстиции РФ'}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedReport.status === 'rejected' && (
+                    <div className="p-4 bg-rose-950/40 border-2 border-rose-500/60 rounded-xl space-y-2 shadow-inner">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-rose-400 font-bold text-xs">
+                          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                          <span>РАПОРТ ОТКЛОНЕН • ТРЕБУЕТСЯ ДОРАБОТКА</span>
+                        </div>
+                        <span className="font-mono text-[10px] text-rose-300 font-bold bg-rose-900/60 px-2.5 py-0.5 rounded border border-rose-500/30">
+                          {selectedReport.reviewedAt || selectedReport.date}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-200 pl-7">
+                        <b>Замечания Председателя:</b> «{selectedReport.reviewerComment || 'Требуется устранить выявленные процессуальные недостатки и подать повторно.'}»
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Chairman Action Control Box */}
+                  {isChairman && (
+                    <div className="p-4 bg-gradient-to-r from-red-950/40 via-slate-900 to-slate-900 border border-red-500/40 rounded-xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                          <ShieldCheck className="w-4 h-4 text-amber-400" />
+                          <span>Панель Председателя СК РФ: Утверждение рапорта</span>
+                        </div>
+                        <span className="text-[10px] text-red-300 font-mono font-bold bg-red-950 px-2.5 py-0.5 rounded border border-red-800">
+                          ПРАВА РУКОВОДИТЕЛЯ
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] text-slate-300 font-medium">
+                          Служебная резолюция / письменное указание Председателя:
+                        </label>
+                        <input
+                          type="text"
+                          value={chairmanComment}
+                          onChange={(e) => setChairmanComment(e.target.value)}
+                          placeholder="например: Рапорт утвержден. Присвоить очередное звание / начислить баллы..."
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-amber-400 placeholder:text-slate-600"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleApproveReport(selectedReport)}
+                          className="flex-1 min-w-[160px] py-2 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer flex items-center justify-center gap-1.5 border border-emerald-500/40"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Утвердить рапорт</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRejectReport(selectedReport)}
+                          className="flex-1 min-w-[160px] py-2 px-4 bg-rose-900/60 hover:bg-rose-800 text-rose-200 hover:text-white font-bold text-xs rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 border border-rose-700/60"
+                        >
+                          <AlertCircle className="w-4 h-4" />
+                          <span>Отклонить (на доработку)</span>
+                        </button>
+
+                        {selectedReport.status !== 'submitted' && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetReportStatus(selectedReport)}
+                            className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition cursor-pointer"
+                            title="Вернуть в статус 'На рассмотрении'"
+                          >
+                            <span>Сбросить</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

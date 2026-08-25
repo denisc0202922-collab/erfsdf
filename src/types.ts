@@ -53,6 +53,15 @@ export interface CitizenAppeal {
 
 export type UserRoleType = 'guest' | 'investigator' | 'forensic' | 'head' | 'operative' | 'admin';
 
+export interface ServiceRoleItem {
+  id: string;
+  title: string;
+  accessRole: 'admin' | 'head' | 'investigator' | 'forensic' | 'operative';
+  badgeColor?: 'red' | 'blue' | 'purple' | 'amber' | 'emerald' | 'cyan' | 'slate';
+  description?: string;
+  isSystem?: boolean;
+}
+
 export interface UserAccount {
   id: string;
   username: string;
@@ -60,6 +69,7 @@ export interface UserAccount {
   fullName: string;
   rank: RankType;
   position: string;
+  serviceRoleTitle?: string;
   departmentId: string;
   departmentName: string;
   badgeNumber: string;
@@ -253,6 +263,8 @@ export interface ReportRecord {
   arrestsCount: number;
   pointsCalculated: number;
   reviewerComment?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
   juniorOfficerName?: string; // ФИО младшего лейтенанта / помощника следователя
   juniorOfficerBadge?: string; // Номер жетона стажера
   internshipRecommendation?: 'promote_lieutenant' | 'continue_training' | 'excellent';

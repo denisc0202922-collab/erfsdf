@@ -15,7 +15,8 @@ import {
   Home,
   LogOut,
   ShieldCheck,
-  LogIn
+  LogIn,
+  KeyRound
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -25,6 +26,7 @@ interface HeaderProps {
   onUpdateOfficer: (officer: OfficerProfile) => void;
   onOpenSearch: () => void;
   onOpenDataModal: () => void;
+  onOpenChangePassword?: () => void;
   onNavigateHome?: () => void;
   onLogout?: () => void;
   activeWantedCount: number;
@@ -38,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   onUpdateOfficer,
   onOpenSearch,
   onOpenDataModal,
+  onOpenChangePassword,
   onNavigateHome,
   onLogout,
   activeWantedCount,
@@ -248,6 +251,18 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Change Password Button */}
+              {onOpenChangePassword && (
+                <button
+                  type="button"
+                  onClick={onOpenChangePassword}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-black/30 border border-white/20 text-white hover:text-amber-300 transition cursor-pointer shadow-sm"
+                  title="Сменить служебный пароль учетной записи"
+                >
+                  <KeyRound className="w-4 h-4" />
+                </button>
+              )}
 
               {/* Logout Button */}
               {onLogout && (

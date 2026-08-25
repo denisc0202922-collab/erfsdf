@@ -8,7 +8,8 @@ import {
   RPBind,
   DepartmentItem,
   UserAccount,
-  ChairmanOrder
+  ChairmanOrder,
+  ServiceRoleItem
 } from '../types';
 
 export const INITIAL_OFFICER: OfficerProfile = {
@@ -686,5 +687,128 @@ export const INITIAL_ORDERS: ChairmanOrder[] = [
     issuedBy: 'Чернов Денис Максимович, Генерал юстиции РФ',
     seal: true,
     status: 'active'
+  }
+];
+
+export const INITIAL_SERVICE_ROLES: ServiceRoleItem[] = [
+  {
+    id: 'role-1st-dep-chairman',
+    title: 'Пер. Зам. Председателя СК',
+    accessRole: 'admin',
+    badgeColor: 'red',
+    description: 'Первый заместитель Председателя Следственного комитета Российской Федерации',
+    isSystem: true
+  },
+  {
+    id: 'role-dep-chairman',
+    title: 'Зам Председателя СК',
+    accessRole: 'admin',
+    badgeColor: 'red',
+    description: 'Заместитель Председателя Следственного комитета Российской Федерации',
+    isSystem: true
+  },
+  {
+    id: 'role-dep-gvsu',
+    title: 'Зам Председателя СК по ГВСУ',
+    accessRole: 'admin',
+    badgeColor: 'red',
+    description: 'Заместитель Председателя СК РФ — руководитель Главного военного следственного управления',
+    isSystem: true
+  },
+  {
+    id: 'role-head-spb',
+    title: 'Начальник отдела по СПБ',
+    accessRole: 'head',
+    badgeColor: 'purple',
+    description: 'Руководитель следственного отдела / управления по г. Санкт-Петербургу',
+    isSystem: true
+  },
+  {
+    id: 'role-military-inv',
+    title: 'Военный следователь',
+    accessRole: 'investigator',
+    badgeColor: 'emerald',
+    description: 'Следователь Главного военного следственного управления (ГВСУ СК РФ)',
+    isSystem: true
+  },
+  {
+    id: 'role-ovd-inv',
+    title: 'Следователь по ОВД',
+    accessRole: 'investigator',
+    badgeColor: 'blue',
+    description: 'Следователь по особо важным делам',
+    isSystem: true
+  },
+  {
+    id: 'role-duty-inv',
+    title: 'Дежурный следователь',
+    accessRole: 'investigator',
+    badgeColor: 'blue',
+    description: 'Дежурный следователь суточного оперативного наряда',
+    isSystem: true
+  },
+  {
+    id: 'role-senior-inv',
+    title: 'Ст следователь',
+    accessRole: 'investigator',
+    badgeColor: 'blue',
+    description: 'Старший следователь следственного отдела',
+    isSystem: true
+  },
+  {
+    id: 'role-inv',
+    title: 'Следователь',
+    accessRole: 'investigator',
+    badgeColor: 'blue',
+    description: 'Следователь следственного отдела / управления',
+    isSystem: true
+  },
+  {
+    id: 'role-head-hr',
+    title: 'Начальник отдела кадров',
+    accessRole: 'head',
+    badgeColor: 'amber',
+    description: 'Руководитель Управления / отдела кадров СК РФ',
+    isSystem: true
+  },
+  {
+    id: 'role-hr-officer',
+    title: 'Отдел кадров',
+    accessRole: 'operative',
+    badgeColor: 'amber',
+    description: 'Инспектор / специалист Управления кадров СК РФ',
+    isSystem: true
+  },
+  {
+    id: 'role-assistant',
+    title: 'Помощник следователя',
+    accessRole: 'investigator',
+    badgeColor: 'slate',
+    description: 'Помощник следователя / Младший лейтенант / Стажер СК РФ',
+    isSystem: true
+  },
+  {
+    id: 'role-chairman',
+    title: 'Председатель СК РФ',
+    accessRole: 'admin',
+    badgeColor: 'red',
+    description: 'Высшее должностное лицо Следственного комитета РФ (Генерал юстиции РФ)',
+    isSystem: true
+  },
+  {
+    id: 'role-forensic',
+    title: 'Следователь-криминалист',
+    accessRole: 'forensic',
+    badgeColor: 'cyan',
+    description: 'Следователь-криминалист / Эксперт Криминалистического центра',
+    isSystem: true
+  },
+  {
+    id: 'role-usb',
+    title: 'Оперативный сотрудник / УСБ',
+    accessRole: 'operative',
+    badgeColor: 'purple',
+    description: 'Сотрудник Управления собственной безопасности СК РФ',
+    isSystem: true
   }
 ];
