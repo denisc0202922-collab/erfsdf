@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ReportRecord, ReportType, OfficerProfile, CriminalCase } from '../types';
+import { ReportRecord, ReportType, OfficerProfile, CriminalCase, UserAccount } from '../types';
 import {
   FileSpreadsheet,
   PlusCircle,
@@ -27,6 +27,7 @@ interface ReportsViewProps {
   reports: ReportRecord[];
   officer: OfficerProfile;
   cases: CriminalCase[];
+  accounts?: UserAccount[];
   onAddReport: (report: ReportRecord) => void;
   onUpdateReport: (report: ReportRecord) => void;
   onDeleteReport: (id: string) => void;
@@ -37,6 +38,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   reports,
   officer,
   cases,
+  accounts,
   onAddReport,
   onUpdateReport,
   onDeleteReport,
@@ -604,10 +606,49 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {/* Special Fields if Junior Officer Internship Report */}
               {formReport.type === 'junior_internship' && (
                 <div className="p-3.5 bg-blue-950/40 border border-blue-500/40 rounded-xl space-y-3">
-                  <div className="text-xs font-bold text-blue-300 flex items-center gap-1.5">
-                    <UserCheck className="w-4 h-4 text-blue-400" />
-                    <span>Данные стажера (младшего лейтенанта юстиции / помощника):</span>
+                  <div className="text-xs font-bold text-blue-300 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4 text-blue-400" />
+                      <span>Данные стажера (младшего лейтенанта юстиции / помощника):</span>
+                    </div>
+                    {accounts && accounts.length > 0 && (
+                      <span className="text-[10px] text-blue-400/80 font-normal">
+                        В штате: {accounts.length} сотр.
+                      </span>
+                    )}
                   </div>
+
+                  {/* Dropdown to select junior officer from registry */}
+                  {accounts && accounts.length > 0 && (
+                    <div className="space-y-1">
+                      <label className="block text-slate-300 text-[11px] font-semibold">
+                        ⚡ Выберите сотрудника / стажера из реестра СК РФ:
+                      </label>
+                      <select
+                        onChange={(e) => {
+                          const selectedAcc = accounts.find((a) => a.id === e.target.value);
+                          if (selectedAcc) {
+                            setFormReport({
+                              ...formReport,
+                              juniorOfficerName: selectedAcc.fullName,
+                              juniorOfficerBadge: selectedAcc.badgeNumber,
+                              title: `Рапорт о прохождении стажировки мл. лейтенантом ${selectedAcc.fullName}`
+                            });
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full px-3 py-2 bg-slate-900 border border-blue-500/60 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-blue-400 font-medium"
+                      >
+                        <option value="" disabled>-- Выберите младшего лейтенанта / помощника из списка --</option>
+                        {accounts.map((acc) => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.fullName} • {acc.rank} ({acc.badgeNumber}) — {acc.departmentName || 'СК РФ'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 mb-1">ФИО помощника следователя *</label>

@@ -45,6 +45,7 @@ import {
   DEFAULT_INTERNSHIP_TASKS
 } from '../data/examQuestions';
 import { OfficialEmblem, OfficialStampSeal } from './OfficialEmblem';
+import { OfficerPhoto } from './OfficerPhoto';
 import { saveOfficerProfile, saveAccounts, saveOrders } from '../utils/storage';
 
 interface JuniorExamViewProps {
@@ -698,11 +699,15 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
             <div className="text-xs font-black text-slate-900">{officer.fullName}</div>
             <div className="text-[10px] text-[#85181b] font-mono font-bold">{officer.rank}</div>
           </div>
-          <img
-            src={officer.photoUrl}
-            alt={officer.fullName}
-            className="w-11 h-11 rounded-xl object-cover border border-slate-300 shadow-sm"
-          />
+          <div className="w-11 h-11 shrink-0">
+            <OfficerPhoto
+              src={officer.photoUrl}
+              alt={officer.fullName}
+              className="w-full h-full rounded-xl object-cover border border-slate-300 shadow-sm"
+              rank={officer.rank}
+              fallbackInitials={officer.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+            />
+          </div>
         </div>
       </div>
 
@@ -1130,7 +1135,15 @@ export const JuniorExamView: React.FC<JuniorExamViewProps> = ({
                       onChange={() => setSelectedMentorName(m.fullName)}
                       className="text-[#85181b] focus:ring-[#85181b]"
                     />
-                    <img src={m.photoUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-slate-200" />
+                    <div className="w-9 h-9 shrink-0">
+                      <OfficerPhoto
+                        src={m.photoUrl}
+                        alt={m.fullName}
+                        className="w-full h-full rounded-lg object-cover border border-slate-200"
+                        rank={m.rank}
+                        fallbackInitials={m.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                      />
+                    </div>
                     <div className="text-xs">
                       <div className="font-bold text-slate-900">{m.fullName}</div>
                       <div className="text-[10px] text-[#85181b] font-medium">{m.rank}</div>

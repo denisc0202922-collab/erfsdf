@@ -35,7 +35,9 @@ import {
   saveOrders,
   exportFullBackup,
   importFullBackup,
-  resetToInitialSeedData
+  resetToInitialSeedData,
+  fetchDatabaseFromServer,
+  syncDatabaseToServer
 } from './utils/storage';
 
 import { Header } from './components/Header';
@@ -109,6 +111,24 @@ export function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Initial server database synchronization (data/database.json)
+  useEffect(() => {
+    fetchDatabaseFromServer().then((db) => {
+      if (db) {
+        if (db.officer) setOfficer(db.officer);
+        if (db.offenders) setOffenders(db.offenders);
+        if (db.cases) setCases(db.cases);
+        if (db.articles) setArticles(db.articles);
+        if (db.reports) setReports(db.reports);
+        if (db.documents) setDocuments(db.documents);
+        if (db.binds) setBinds(db.binds);
+        if (db.departments) setDepartments(db.departments);
+        if (db.accounts) setAccounts(db.accounts);
+        if (db.orders) setOrders(db.orders);
+      }
+    });
   }, []);
 
   // Sync state changes to storage
@@ -553,6 +573,7 @@ export function App() {
                   reports={reports}
                   officer={officer}
                   cases={cases}
+                  accounts={accounts}
                   onAddReport={handleAddReport}
                   onUpdateReport={handleUpdateReport}
                   onDeleteReport={handleDeleteReport}

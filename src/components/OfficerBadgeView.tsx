@@ -25,6 +25,7 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 import { OfficialEmblem, OfficialStampSeal } from './OfficialEmblem';
+import { OfficerPhoto } from './OfficerPhoto';
 import { saveAccounts } from '../utils/storage';
 
 interface OfficerBadgeViewProps {
@@ -361,10 +362,12 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
                 <div className="flex flex-col items-center flex-shrink-0">
                   {/* Photo Container with Official Frame */}
                   <div className="relative w-28 sm:w-32 h-36 sm:h-40 rounded-sm border-2 border-slate-700 overflow-hidden bg-slate-200 shadow-md group">
-                    <img
-                      src={officer.photoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
+                    <OfficerPhoto
+                      src={officer.photoUrl}
                       alt={officer.fullName}
                       className="w-full h-full object-cover"
+                      rank={officer.rank}
+                      fallbackInitials={officer.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
                     />
 
                     {/* Change Photo Overlay Button on Hover */}
@@ -796,10 +799,12 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
             <div className="text-center space-y-2">
               <div className="relative w-28 h-36 mx-auto rounded-2xl overflow-hidden border-2 border-slate-200 shadow-md group">
-                <img
+                <OfficerPhoto
                   src={officer.photoUrl}
                   alt={officer.fullName}
                   className="w-full h-full object-cover"
+                  rank={officer.rank}
+                  fallbackInitials={officer.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
                 />
                 <button
                   type="button"
@@ -1247,10 +1252,11 @@ export const OfficerBadgeView: React.FC<OfficerBadgeViewProps> = ({
             {/* Live Preview Section */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
               <div className="relative w-24 h-32 rounded-sm border-2 border-slate-700 overflow-hidden bg-slate-200 shadow-md shrink-0">
-                <img
-                  src={tempPhotoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
+                <OfficerPhoto
+                  src={tempPhotoUrl}
                   alt="Предпросмотр"
                   className="w-full h-full object-cover"
+                  rank={officer.rank}
                 />
                 <div
                   className="absolute top-1 right-1 w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-300 via-amber-100 to-yellow-500 border border-yellow-600/60 shadow-md flex flex-col items-center justify-center text-[5.5px] font-black text-amber-950 opacity-90"

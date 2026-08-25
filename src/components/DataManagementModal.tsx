@@ -118,6 +118,46 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
             </div>
           </div>
 
+          {/* Physical Database File Box */}
+          <div className="bg-emerald-950/30 p-4 rounded-xl border border-emerald-500/40 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <HardDrive className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <div className="text-sm font-bold text-emerald-300">
+                    Физическая база данных (database.json)
+                  </div>
+                  <div className="text-[11px] text-emerald-400/80">
+                    Все действия, дела, отчеты и профили автоматически пишутся в файл на сервере
+                  </div>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold font-mono">
+                ONLINE • АКТИВНА
+              </span>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  fetch('/api/db/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      timestamp: new Date().toISOString()
+                    })
+                  }).catch(() => {});
+                  onExport();
+                }}
+                className="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Синхронизировать и выгрузить БД</span>
+              </button>
+            </div>
+          </div>
+
           {/* Export Section */}
           <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800/80 space-y-3">
             <div className="flex items-center justify-between">

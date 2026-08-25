@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { OfficerProfile, UserRoleType } from '../types';
 import { OfficialEmblem } from './OfficialEmblem';
+import { OfficerPhoto } from './OfficerPhoto';
 import {
   ShieldAlert,
   Clock,
@@ -224,11 +225,15 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-2.5 cursor-pointer group"
                 title="Служебный профиль сотрудника"
               >
-                <img
-                  src={officer.photoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
-                  alt={officer.fullName}
-                  className="w-8 h-8 rounded-xl object-cover border border-white/40 shadow-sm group-hover:border-amber-300 transition"
-                />
+                <div className="w-8 h-8 shrink-0 rounded-xl overflow-hidden border border-white/40 shadow-sm group-hover:border-amber-300 transition">
+                  <OfficerPhoto
+                    src={officer.photoUrl}
+                    alt={officer.fullName}
+                    className="w-full h-full object-cover"
+                    rank={officer.rank}
+                    fallbackInitials={officer.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                  />
+                </div>
                 <div className="hidden xl:block text-left">
                   <div className="text-xs font-bold text-white leading-tight group-hover:text-amber-200 transition flex items-center gap-1.5">
                     <span>{officer.fullName}</span>

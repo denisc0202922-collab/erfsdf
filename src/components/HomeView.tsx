@@ -12,6 +12,7 @@ import {
   UserRoleType
 } from '../types';
 import { OfficialEmblem } from './OfficialEmblem';
+import { OfficerPhoto } from './OfficerPhoto';
 import {
   ShieldCheck,
   KeyRound,
@@ -109,6 +110,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [submittedAppealNumber, setSubmittedAppealNumber] = useState<string | null>(null);
 
   const isChairman = officer.rank === 'Генерал юстиции РФ' || officer.fullName.includes('Чернов') || userRole === 'admin';
+  const chairmanAccount = accounts.find((a) => a.username === 'chernov_d' || a.fullName.includes('Чернов')) || null;
+  const chairmanPhoto = (officer.fullName.includes('Чернов') ? officer.photoUrl : null) || chairmanAccount?.photoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
 
   // Handle Login via Form (Username + Password)
   const handleLoginSubmit = (e: React.FormEvent) => {
@@ -289,13 +292,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* 2. CHAIRMAN BLOCK (Чернов Денис Максимович) */}
       <div className="bg-gradient-to-r from-red-950 via-[#85181b] to-[#6f1215] text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-red-900 flex flex-col md:flex-row items-center justify-between gap-5 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left z-10">
-          <div className="relative shrink-0">
-            <img
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80"
+          <div className="relative shrink-0 w-16 h-20 sm:w-20 sm:h-24">
+            <OfficerPhoto
+              src={chairmanPhoto}
               alt="Чернов Денис Максимович"
-              className="w-16 h-20 sm:w-20 sm:h-24 rounded-2xl object-cover border-2 border-amber-400 shadow-2xl"
+              className="w-full h-full rounded-2xl object-cover border-2 border-amber-400 shadow-2xl"
+              rank="Генерал юстиции РФ"
+              fallbackInitials="ДЧ"
             />
-            <span className="absolute -bottom-1.5 -right-1.5 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[9px] shadow border border-white">
+            <span className="absolute -bottom-1.5 -right-1.5 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[9px] shadow border border-white z-20">
               ГЕНЕРАЛ
             </span>
           </div>

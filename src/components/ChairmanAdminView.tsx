@@ -9,6 +9,7 @@ import {
   ActiveTabType
 } from '../types';
 import { OfficialEmblem } from './OfficialEmblem';
+import { OfficerPhoto } from './OfficerPhoto';
 import {
   Shield,
   ShieldCheck,
@@ -593,13 +594,15 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left z-10">
-          <div className="relative shrink-0">
-            <img
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80"
+          <div className="relative shrink-0 w-20 h-24 sm:w-24 sm:h-28">
+            <OfficerPhoto
+              src={currentOfficer.fullName.includes('Чернов') ? currentOfficer.photoUrl : accounts.find((a) => a.username === 'chernov_d')?.photoUrl || currentOfficer.photoUrl}
               alt="Чернов Денис Максимович"
-              className="w-20 h-24 sm:w-24 sm:h-28 rounded-2xl object-cover border-2 border-amber-400/80 shadow-2xl"
+              className="w-full h-full rounded-2xl object-cover border-2 border-amber-400/80 shadow-2xl"
+              rank="Генерал юстиции РФ"
+              fallbackInitials="ДЧ"
             />
-            <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] shadow border border-white">
+            <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] shadow border border-white z-20">
               ГЕНЕРАЛ
             </span>
           </div>
@@ -792,11 +795,15 @@ export const ChairmanAdminView: React.FC<ChairmanAdminViewProps> = ({
                     {/* Header with Avatar and Badges */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={acc.photoUrl}
-                          alt={acc.fullName}
-                          className="w-12 h-14 rounded-xl object-cover border border-slate-200 shadow-sm shrink-0"
-                        />
+                        <div className="w-12 h-14 shrink-0">
+                          <OfficerPhoto
+                            src={acc.photoUrl}
+                            alt={acc.fullName}
+                            className="w-full h-full rounded-xl object-cover border border-slate-200 shadow-sm"
+                            rank={acc.rank}
+                            fallbackInitials={acc.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                          />
+                        </div>
                         <div className="space-y-0.5">
                           <span
                             className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${

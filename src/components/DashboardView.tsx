@@ -25,6 +25,7 @@ import {
   Award
 } from 'lucide-react';
 import { NavTab } from './Sidebar';
+import { OfficerPhoto } from './OfficerPhoto';
 
 interface DashboardViewProps {
   officer: OfficerProfile;
@@ -72,11 +73,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <img
-              src={officer.photoUrl}
-              alt={officer.fullName}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-[#85181b]/30 shadow-md"
-            />
+            <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0">
+              <OfficerPhoto
+                src={officer.photoUrl}
+                alt={officer.fullName}
+                className="w-full h-full rounded-2xl object-cover border-2 border-[#85181b]/30 shadow-md"
+                rank={officer.rank}
+                fallbackInitials={officer.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+              />
+            </div>
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <span className="bg-red-50 text-[#85181b] border border-red-200 text-xs font-mono px-2.5 py-0.5 rounded-lg font-bold">
